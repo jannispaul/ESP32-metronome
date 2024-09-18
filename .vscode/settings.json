@@ -1,0 +1,6 @@
+{
+  "files.associations": {
+    "*.njk": "twig",
+    "cmath": "cpp"
+  }
+}

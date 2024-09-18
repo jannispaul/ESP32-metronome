@@ -24,7 +24,8 @@ Select Board: DOIT ESP32 Devkit V1
 
 ## File system
 
-> - ### Deprecated implementation:
+> ### Deprecated implementation:
+>
 > - Only works with 1.8.x
 > - LittleFS installieren:
 > - https://randomnerdtutorials.com/esp32-littlefs-arduino-ide/
@@ -58,3 +59,17 @@ The diagram currently still has mistakes.
   Can be fixed by choosing a partition scheme **minimal SPIFFS (Large Apps with OTA)** in the menu: _Tools / Partition scheme_
 - **Menu _Tools / Partition scheme_ not showing in Arduino IDE 2.x**:\
   Can be fixed by modifying board.txt: https://forum.arduino.cc/t/partition-menu-not-showing-esp32/1229446/4
+
+## User Interface
+
+Library used U8g2:
+
+- Wiki: https://github.com/olikraus/u8g2/wiki/u8g2setupcpp
+- Constructor reference: https://github.com/olikraus/u8g2/wiki/u8g2setupcpp#ssd1305-128x32_noname
+
+### Create UI assets:
+
+Lopaka Workflow: https://www.youtube.com/watch?v=Eyvzw_ujcS0
+
+1. Go to https://lopaka.app/
+2. Make sure library is set to U8g2 and resolution to 128x64px
