@@ -5,6 +5,7 @@ This repository documents the creation of a metronome with the ESP32.
 ## Setup
 
 Use PlatformIO IDE extension for VSCODE to run this project: https://marketplace.visualstudio.com/items?itemName=platformio.platformio-ide
+
 Select Board: DOIT ESP32 Devkit V1
 
 ### Libraries
@@ -12,14 +13,15 @@ Select Board: DOIT ESP32 Devkit V1
 - Button2
 - Adafruit_GFX
 - Adafruit_SSD1306
-- ESP32Encoder // https://github.com/madhephaestus/ESP32Encoder.git
-- Audio // ESP32-audioI2S https://github.com/schreibfaul1/ESP32-audioI2S/
-- U8g2lib // https://github.com/olikraus/u8g2
+- ESP32Encoder: https://github.com/madhephaestus/ESP32Encoder.git
+- ESP32-audioI2S: https://github.com/schreibfaul1/ESP32-audioI2S/
+- U8g2lib: https://github.com/olikraus/u8g2
 
-#### Audio // ESP32-audioI2S
+#### ESP32-audioI2S
 
 nur 16bit, 10kHz ok
-500Hz Fullscale Wav max. audio.setVolume(7) // besser 6
+500Hz Fullscale Wav max. audio.setVolume(7)\
+besser 6
 
 ## File system
 
@@ -49,7 +51,8 @@ SD auf 3V3
 ### Circut
 
 A circuit schematic can be found here: [Cuircuit diagram](circuit.pdf)
-The diagram currently still has mistakes.
+
+> The diagram currently still has mistakes.
 
 ## User Interface
 
