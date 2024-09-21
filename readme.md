@@ -2,13 +2,24 @@
 
 This repository documents the creation of a metronome with the ESP32.
 
+## Table of Contents
+
+1. [Setup](#setup)
+2. [File system](#file-system)
+3. [Hardware](#hardware)
+4. [User Interface](#user-interface)
+5. [Issues](#issues)
+
 ## Setup
 
-Use PlatformIO IDE extension for VSCODE to run this project: https://marketplace.visualstudio.com/items?itemName=platformio.platformio-ide
+This project is **not** intended for use with Arduino IDE. Instead it should be used with PlatformIO.
+Use [VSCODE](https://code.visualstudio.com/) with the [PlatformIO IDE extension](https://marketplace.visualstudio.com/items?itemName=platformio.platformio-ide) to run this project.
 
-Select Board: DOIT ESP32 Devkit V1
+In PlatformIO: -> Select Board: DOIT ESP32 Devkit V1
 
 ### Libraries
+
+The project uses the following libraries. A list of the dependencies can also be found the config file [platformio.ini](platformio.ini)
 
 - Button2
 - Adafruit_GFX
@@ -35,9 +46,7 @@ besser 6
 ### Upload WAV files
 
 Based on this Tutorial hochladen: https://randomnerdtutorials.com/arduino-ide-2-install-esp32-littlefs/
-
 Arduino IDE --> Tools --> ESP32 Sketch Data Upload --> SPIFFS
-
 Log files stored in filessystem: https://techtutorialsx.com/2019/02/23/esp32-arduino-list-all-files-in-the-spiffs-file-system/
 
 ## Hardware
