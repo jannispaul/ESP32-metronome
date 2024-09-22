@@ -12,8 +12,8 @@ This repository documents the creation of a metronome with the ESP32.
 
 ## Setup
 
-This project is **not** intended for use with Arduino IDE. Instead it should be used with PlatformIO.
-Use [VSCODE](https://code.visualstudio.com/) with the [PlatformIO IDE extension](https://marketplace.visualstudio.com/items?itemName=platformio.platformio-ide) to run this project.
+This project is **not** intended for use with Arduino IDE but with **PlatformIO** instead.
+Use [VS Code](https://code.visualstudio.com/) with the [PlatformIO IDE extension](https://marketplace.visualstudio.com/items?itemName=platformio.platformio-ide) to run this project.
 
 In PlatformIO: -> Select Board: DOIT ESP32 Devkit V1
 
