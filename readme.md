@@ -30,9 +30,8 @@ The project uses the following libraries. A list of the dependencies can also be
 
 #### ESP32-audioI2S
 
-nur 16bit, 10kHz ok
-500Hz Fullscale Wav max. audio.setVolume(7)\
-besser 6
+only use 16bit, 10kHz is ok
+500Hz Fullscale Wav max. audio.setVolume(7), better 6
 
 ## File system
 
@@ -53,15 +52,15 @@ Log files stored in filessystem: https://techtutorialsx.com/2019/02/23/esp32-ard
 
 ### Amp:
 
-100nF + 1000µF Kapazität vor Vin Amp
-100K zwischen Vin und Gain
-SD auf 3V3
+100nF + 1000µF capacity before Vin Amp?
+100K between Vin and Gain?
+SD to 3V3?
 
 ### Circut
 
-A circuit schematic can be found here: [Cuircuit diagram](circuit.pdf)
+A circuit schematic can be found here: [Circuit diagram](circuit.pdf)
 
-> The diagram currently still has mistakes.
+> The schematic is still under development.
 
 ## User Interface
 
