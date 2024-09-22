@@ -56,9 +56,9 @@ Log files stored in filessystem: https://techtutorialsx.com/2019/02/23/esp32-ard
 100K between Vin and Gain?
 SD to 3V3?
 
-### Circut
+### Schematic
 
-A circuit schematic can be found here: [Circuit diagram](circuit.pdf)
+A circuit schematic can be found here: [schematic](schematic.pdf)
 
 > The schematic is still under development.
 
