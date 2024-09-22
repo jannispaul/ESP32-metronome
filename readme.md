@@ -30,15 +30,15 @@ The project uses the following libraries. A list of the dependencies can also be
 
 #### ESP32-audioI2S
 
-only use 16bit, 10kHz is ok
-500Hz Fullscale Wav max. audio.setVolume(7), better 6
+- only use 16bit, 10kHz is ok
+- 500Hz Fullscale Wav max. audio.setVolume(7), better 6
 
 ## File system
 
 > ### Deprecated implementation:
 >
 > - Only works with 1.8.x
-> - LittleFS installieren:
+> - install LittleFS:
 > - https://randomnerdtutorials.com/esp32-littlefs-arduino-ide/
 > - https://randomnerdtutorials.com/install-esp32-filesystem-uploader-arduino-ide/#macos-installing
 
@@ -52,9 +52,9 @@ Log files stored in filessystem: https://techtutorialsx.com/2019/02/23/esp32-ard
 
 ### Amp:
 
-100nF + 1000µF capacity before Vin Amp?
-100K between Vin and Gain?
-SD to 3V3?
+- 100nF + 1000µF capacity before Vin Amp?
+- 100K between Vin and Gain?
+- SD to 3V3?
 
 ### Schematic
 
