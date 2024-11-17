@@ -315,19 +315,30 @@ void pulseLED()
     digitalWrite(LEDPin, HIGH);
 }
 
-void audioClick()
+void audioClick(int soundIndex)
 {
-    if (soundIndex == 1)
+    if (soundIndex >= 0 && soundIndex < sizeof(soundFiles) / sizeof(soundFiles[0]))
     {
-        audio.connecttoFS(SPIFFS, "/sound1.wav");
-        // SD
+        audio.connecttoFS(SPIFFS, soundFiles[soundIndex]);
     }
-
-    if (soundIndex == 2)
+    else
     {
-        audio.connecttoFS(SPIFFS, "/sound2.wav");
+        Serial.println("Invalid sound index!");
     }
 }
+// void audioClick()
+// {
+//     if (soundIndex == 1)
+//     {
+//         audio.connecttoFS(SPIFFS, "/sound1.wav");
+//         // SD
+//     }
+
+//     if (soundIndex == 2)
+//     {
+//         audio.connecttoFS(SPIFFS, "/sound2.wav");
+//     }
+// }
 
 void pressed(Button2 &btn)
 {
@@ -460,7 +471,7 @@ void loop()
 
         if (metronomRunning == true)
         {
-            audioClick();
+            audioClick(soundIndex);
             LEDDelay();
         }
         timeStampBPM = millis();
