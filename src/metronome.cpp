@@ -186,6 +186,7 @@ void setup(void)
     u8g2.begin();
     Serial.begin(115200);
     SPIFFS.begin();
+    // delay(6000); // waits for 6 seconds
     Serial.println("Start");
 
     // Print file names in filesystem to serial
