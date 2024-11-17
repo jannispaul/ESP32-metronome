@@ -46,6 +46,7 @@ int bpmMax = 240;
 int bpmMin = 30;
 int lastBpm = 0;
 int LEDdelaytime = 100;
+int mode = 0; // 0 = bpm, 1 = sound selection
 
 int LEDPin = 32;
 // int potiPin = 36;
@@ -55,7 +56,12 @@ int triggerDistance = 0;
 float temp = 0.0;
 int displayRefresh = 500;
 
-int SoundNo = 1;
+int soundIndex = 0;
+
+const char *soundFiles[] = {
+    "/sound1.wav", // Index 0
+    "/sound2.wav"};
+int soundFileCount = sizeof(soundFiles) / sizeof(soundFiles[0]);
 
 bool metronomRunning = true;
 bool displayMenu = false;
@@ -74,7 +80,7 @@ void tripleClick(Button2 &btn);
 void tap(Button2 &btn);
 void LEDDelay();
 void loop();
-void displayUI();
+void displayUI(int displaySetting);
 
 // U8G2 Constructor for ESP32
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE);
@@ -132,14 +138,14 @@ const unsigned char epd_bitmap_Property_1_Battery_25[] PROGMEM = {
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x03, 0xe0, 0xfb, 0xef, 0xeb, 0xcf,
     0xeb, 0xcf, 0xfb, 0xef, 0x03, 0xe0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 // 'Property 1=Beat', 16x16px
-const unsigned char epd_bitmap_Property_1_Beat[] PROGMEM = {
-    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x9d, 0x88, 0xdd, 0xda, 0x91, 0xda,
-    0xd5, 0xd8, 0xd5, 0xda, 0x91, 0xda, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-// 'Property 1=Battery 100', 16x16px
 const unsigned char epd_bitmap_Property_1_Battery_100[] PROGMEM = {
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x03, 0xe0, 0xfb, 0xef, 0xab, 0xca,
     0xab, 0xca, 0xfb, 0xef, 0x03, 0xe0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 // 'Property 1=Increase', 16x16px
+const unsigned char epd_bitmap_Property_1_Beat[] PROGMEM = {
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x9d, 0x88, 0xdd, 0xda, 0x91, 0xda,
+    0xd5, 0xd8, 0xd5, 0xda, 0x91, 0xda, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+// 'Property 1=Battery 100', 16x16px
 const unsigned char epd_bitmap_Property_1_Increase[] PROGMEM = {
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xef, 0xff, 0xe7, 0xff, 0xe3, 0xff, 0xe1, 0xff, 0xe0,
     0x7f, 0xe0, 0x3f, 0xe0, 0x1f, 0xe0, 0x0f, 0xe0, 0x07, 0xe0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
@@ -171,6 +177,8 @@ const unsigned char *epd_bitmap_allArray[17] = {
 
 static const unsigned char image_Property_1_Battery_100_bits[] U8X8_PROGMEM = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xfc, 0x1f, 0x04, 0x10, 0x54, 0x35, 0x54, 0x35, 0x04, 0x10, 0xfc, 0x1f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 static const unsigned char image_Property_1_Volume_bits[] U8X8_PROGMEM = {0x00, 0x00, 0x00, 0x08, 0x00, 0x10, 0x00, 0x22, 0x10, 0x44, 0x98, 0x48, 0x1e, 0x49, 0x1e, 0x49, 0x1e, 0x49, 0x1e, 0x49, 0x98, 0x48, 0x10, 0x44, 0x00, 0x22, 0x00, 0x10, 0x00, 0x08, 0x00, 0x00};
+
+static const unsigned char *image_Property_1_Battery_75_bits = epd_bitmap_Property_1_Battery_50;
 
 void setup(void)
 {
@@ -210,7 +218,6 @@ void setup(void)
 
     Serial.println(" Longpress Time:\t" + String(button.getLongClickTime()) + "ms");
     Serial.println(" DoubleClick Time:\t" + String(button.getDoubleClickTime()) + "ms");
-    Serial.println();
 
     // button.setChangedHandler(changed);
     // button.setPressedHandler(pressed);
@@ -229,32 +236,15 @@ void setup(void)
     digitalWrite(LEDPin, LOW);
     // pinMode(potiPin, INPUT);
 
+    // Display failsafe
     if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C))
     { // Address 0x3D for 128x64
         Serial.println(F("SSD1306 allocation failed"));
         for (;;)
             ; // Don't proceed, loop forever
     }
-    // Clear the buffer
-    display.clearDisplay();
-    // Show initial display buffer contents on the screen --
-    // the library initializes this with an Adafruit splash screen.
-    display.display();
 
-    //   display.setTextSize(1);
-    //   display.setTextColor(WHITE, BLACK);
-    //   display.setCursor(15, 15);
-    //   display.print("cooles");
-    //   display.setCursor(15, 35);
-    //   display.print(" - Metronom -");
-    //   display.setCursor(15, 55);
-    //   display.print("by FS & JPW");
-    //   display.display();
-    //   delay(1000);
-    //   display.clearDisplay();
-    //   display.setTextSize(2);
-    //   display.display();
-
+    // Audio Setup
     audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
     audio.setVolume(6); // default 0...21
     //  or alternative
@@ -264,9 +254,13 @@ void setup(void)
 
 void displayBPM()
 {
-    displayUI();
+    displayUI(mode);
+    // if (displayMenu == false)
+    // {
+    // }
     if (displayMenu == true && displayToggle == true)
     {
+        // displayUI(1);
         // print data on the SSD1306 display
         // display.setCursor(0, 20);
         // display.print("cooler sound");
@@ -284,13 +278,12 @@ void displayBPM()
         // bpm = encoderValue
         temp = (1 / (bpm / 60.0)) * 1000.0;
         triggerDistance = round(temp);
-        Serial.println(triggerDistance);
-        Serial.println(temp);
-        Serial.println(bpm);
+        Serial.println("triggerDistance: " + String(triggerDistance));
+        Serial.println("tempo: " + String(temp));
+        Serial.println("BPM: " + String(bpm));
 
         if (displayToggle == true && displayMenu == false)
         {
-
             String bpmString = String(bpm);
             display.clearDisplay();
             display.setCursor(0, 20);
@@ -303,7 +296,6 @@ void displayBPM()
 
         if (bpm != lastBpm)
         {
-
             if (displayMenu == false)
             {
                 String bpmString = String(bpm);
@@ -325,13 +317,13 @@ void pulseLED()
 
 void audioClick()
 {
-    if (SoundNo == 1)
+    if (soundIndex == 1)
     {
         audio.connecttoFS(SPIFFS, "/sound1.wav");
         // SD
     }
 
-    if (SoundNo == 2)
+    if (soundIndex == 2)
     {
         audio.connecttoFS(SPIFFS, "/sound2.wav");
     }
@@ -355,14 +347,15 @@ void click(Button2 &btn)
     Serial.println("click\n");
     displayMenu = !displayMenu;
     displayToggle = true;
-    if (SoundNo < 2)
-    {
-        SoundNo++;
-    }
-    else
-    {
-        SoundNo = 1;
-    }
+    mode = !mode;
+    // if (soundIndex < 2)
+    // {
+    //     soundIndex++;
+    // }
+    // else
+    // {
+    //     soundIndex = 1;
+    // }
 }
 void longClickDetected(Button2 &btn)
 {
@@ -392,61 +385,73 @@ void LEDDelay()
     LEDDelayStart = millis();
     LEDDelayActive = true;
 }
-void displayUI()
+void displayUI(int displayMode)
 {
+    // Setup display
     u8g2.clearBuffer();
-
     u8g2.setFontMode(1);
     u8g2.setBitmapMode(1);
+
+    // Draw ui based on displayMode
+    if (displayMode == 0)
+    {
+        // Set bpm as string
+        u8g2.setFont(u8g_font_profont29);
+        String bpmString = String(bpm);
+        u8g2.drawStr(57, 41, bpmString.c_str()); // Draw tempo on the display
+    }
+    else if (displayMode == 1)
+    {
+        u8g2.setFont(u8g_font_profont29);
+        String soundString = "S" + String(soundIndex);
+        u8g2.drawStr(57, 41, soundString.c_str()); // Draw tempo on the display
+
+        // u8g2.drawXBM(0, 48, 16, 16, image_Property_1_Battery_75_bits);
+        u8g2.setFont(u8g_font_5x7); // Change this to the correct font name
+        u8g2.drawStr(36, 59, "Select a sound");
+    }
     u8g2.drawXBM(0, 48, 16, 16, image_Property_1_Battery_100_bits);
     u8g2.drawXBM(0, 24, 16, 16, image_Property_1_Volume_bits);
     u8g2.setFont(u8g_font_4x6); // Change this to the correct font name
     u8g2.drawStr(2, 7, "4");
     u8g2.drawStr(10, 14, "4");
     u8g2.drawLine(5, 10, 10, 5);
-    u8g2.setFont(u8g_font_5x7); // Change this to the correct font name
-    u8g2.drawStr(36, 59, "+1 EVERY 32 BARS");
-    u8g2.setFont(u8g_font_profont29);
+    // u8g2.setFont(u8g_font_5x7); // Change this to the correct font name
+    // u8g2.drawStr(36, 59, "+1 EVERY 32 BARS");
 
-    // Set bpm as string
-    String bpmString = String(bpm);
-    u8g2.drawStr(57, 41, bpmString.c_str()); // Draw tempo on the display
-
+    // Update the display
     u8g2.sendBuffer();
 }
 
 void handleEncoder()
 {
-    if ((encoder.getCount() / 2) > bpmMax)
+    // BPM Mode
+    if (mode == 0)
     {
-        encoder.setCount(bpmMax * 2);
-    }
+        // Keep max and min value on encoder
+        if ((encoder.getCount() / 2) > bpmMax)
+        {
+            encoder.setCount(bpmMax * 2);
+        }
 
-    if ((encoder.getCount() / 2) < bpmMin)
+        if ((encoder.getCount() / 2) < bpmMin)
+        {
+            encoder.setCount(bpmMin * 2);
+        }
+        bpm = encoder.getCount() / 2;
+        // Serial.println("Encoder count = " + String((int32_t)encoder.getCount()));
+        // Serial.println("bpmcount = " + String(bpm));
+    }
+    // Sound selection mode
+    else if (mode == 1)
     {
-        encoder.setCount(bpmMin * 2);
+        soundIndex = encoder.getCount() / 2 % soundFileCount;
     }
 }
-
 void loop()
 {
-
     displayBPM();
     handleEncoder();
-    // encoder
-    // if ((encoder.getCount() / 2) > bpmMax)
-    // {
-    //     encoder.setCount(bpmMax * 2);
-    // }
-
-    // if ((encoder.getCount() / 2) < bpmMin)
-    // {
-    //     encoder.setCount(bpmMin * 2);
-    // }
-
-    bpm = encoder.getCount() / 2;
-    // Serial.println("Encoder count = " + String((int32_t)encoder.getCount()));
-    // Serial.println("bpmcount = " + String(bpm));
 
     button.loop();
 

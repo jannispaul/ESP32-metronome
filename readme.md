@@ -76,8 +76,9 @@ Lopaka Workflow: https://www.youtube.com/watch?v=Eyvzw_ujcS0
 1. Go to https://lopaka.app/
 2. Make sure library is set to U8g2 and resolution to 128x64px
 
-## Issues
+## Issues & Troubleshooting
 
+- **Only gibberish in the serial monitor?** Make sure the baud rate is set to 115200. Set `monitor_speed = 115200` in platformio.ini.
 - **Sketch uses 116% of available space:** \
   Can also have this error message: "Text section exceeds available space in board"\
   Can be fixed by choosing a partition scheme **minimal SPIFFS (Large Apps with OTA)** in the menu: _Tools / Partition scheme_
