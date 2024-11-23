@@ -12,6 +12,8 @@
 // #include "SD.h"
 #include "FS.h"
 #include "SPIFFS.h"
+#include "SoundFileLoader.h"
+
 
 #define CLK 13 // CLK ENCODER
 #define DT 15  // DT ENCODER
@@ -58,11 +60,12 @@ int displayRefresh = 500;
 
 int soundIndex = 0;
 
-#define MAX_FILES 10
-const char *soundFiles[] = {
-    "/sound1.wav", // Index 0
-    "/sound2.wav"};
-int soundFileCount = sizeof(soundFiles) / sizeof(soundFiles[0]);
+const char *soundFiles[MAX_SOUND_FILES];
+
+// const char *soundFiles[] = {
+//     "/sound1.wav", // Index 0
+//     "/sound2.wav"};
+int soundFileCount; //= sizeof(soundFiles) / sizeof(soundFiles[0]);
 
 bool metronomRunning = true;
 bool displayMenu = false;
@@ -207,6 +210,10 @@ void setup(void)
         Serial.println(file.name());
         file = root.openNextFile();
     }
+     // Load sound files
+    soundFileCount = loadSoundFiles(soundFiles, MAX_SOUND_FILES);
+    Serial.printf("%d sound files loaded.\n", soundFileCount);
+
 
     // Enable the weak pull up resistors for encoder
     // ESP32Encoder::useInternalWeakPullResistors = UP;
