@@ -4,11 +4,17 @@ This repository documents the creation of a metronome with the ESP32.
 
 ## Table of Contents
 
+0. [Concept](#concept)
 1. [Setup](#setup)
 2. [File system](#file-system)
 3. [Hardware](#hardware)
 4. [User Interface](#user-interface)
 5. [Issues](#issues)
+
+## Concept
+
+To our knowledge there is not good metronome available on the market. This project is an attempt to create a metronome with a user interface that is easy to use and has a couple of additional features.
+Inspiration board: https://www.figma.com/design/YPMkHb1VGQY4GaYAEU80sy/Metronome?node-id=102-12&node-type=frame&t=6EPdNIxbqS0YYaIc-11
 
 ## Setup
 
