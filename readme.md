@@ -14,7 +14,7 @@ This repository documents the creation of a metronome with the ESP32.
 ## Concept
 
 To our knowledge there is not good metronome available on the market. This project is an attempt to create a metronome with a user interface that is easy to use and has a couple of additional features.
-Inspiration board: https://www.figma.com/design/YPMkHb1VGQY4GaYAEU80sy/Metronome?node-id=102-12&node-type=frame&t=6EPdNIxbqS0YYaIc-11
+Inspiration and concept board: https://www.figma.com/design/YPMkHb1VGQY4GaYAEU80sy/Metronome?node-id=102-12&node-type=frame&t=6EPdNIxbqS0YYaIc-11
 
 ## Setup
 
@@ -77,10 +77,14 @@ Library used U8g2:
 
 ### Create UI assets:
 
-Lopaka Workflow: https://www.youtube.com/watch?v=Eyvzw_ujcS0
+Lopaka Workflow inspired by: https://www.youtube.com/watch?v=Eyvzw_ujcS0
 
-1. Go to https://lopaka.app/
-2. Make sure library is set to U8g2 and resolution to 128x64px
+1. Create UI in Figma
+2. Export PNGS
+3. Go to https://lopaka.app/
+4. Make sure library is set to U8g2 and resolution to 128x64px
+5. Import pngs, add them to screen and check "Declare as PROGMEM" in code settings
+6. Copy bitmap code to project
 
 ## Issues & Troubleshooting
 
