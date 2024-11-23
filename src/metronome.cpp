@@ -58,6 +58,7 @@ int displayRefresh = 500;
 
 int soundIndex = 0;
 
+#define MAX_FILES 10
 const char *soundFiles[] = {
     "/sound1.wav", // Index 0
     "/sound2.wav"};
