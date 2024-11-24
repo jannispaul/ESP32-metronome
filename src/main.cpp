@@ -1,40 +1,51 @@
 #include <Arduino.h>
-
-#include <ESP32Encoder.h> // https://github.com/madhephaestus/ESP32Encoder.git
+#include <ESP32Encoder.h>
 #include "Button2.h"
 #include <Wire.h>
 #include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h> // Display Library
-#include <U8g2lib.h>          // UI Library
-
+#include <Adafruit_SSD1306.h>
+#include <U8g2lib.h>
 #include "Arduino.h"
-#include "Audio.h" //ESP32-audioI2S/
-// #include "SD.h"
+#include "Audio.h"
 #include "FS.h"
 #include "SPIFFS.h"
 #include "SoundFileLoader.h"
 #include "bitmaps.h"
+#include "Config.h"
 
+// Create instances of configuration structures
+MetronomeSettings metronomeSettings;
+TimingConfig timingConfig;
 
-#define CLK 13 // CLK ENCODER
-#define DT 15  // DT ENCODER
-#define BUTTON_PIN 2
-
-#define SCREEN_WIDTH 128 // OLED display width, in pixels
-#define SCREEN_HEIGHT 64 // OLED display height, in pixels
-
-// Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
-#define OLED_RESET LED_BUILTIN
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
-
-#define I2S_DOUT 25
-#define I2S_BCLK 26
-#define I2S_LRC 27
-
+// Hardware instances
 ESP32Encoder encoder;
 Button2 button;
 Audio audio;
 
+// Display setup
+#define OLED_RESET LED_BUILTIN
+Adafruit_SSD1306 display(DisplayConfig::SCREEN_WIDTH, DisplayConfig::SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+// Pin definitions
+#define CLK 13 // CLK ENCODER
+#define DT 15  // DT ENCODER
+#define BUTTON_PIN 2
+#define I2S_DOUT 25
+#define I2S_BCLK 26
+#define I2S_LRC 27
+#define LEDPin 32
+
+// Sound configuration
+int soundIndex = 0;
+const char *soundFiles[MAX_SOUND_FILES];
+int soundFileCount;
+
+// Display state
+bool displayMenu = false;
+bool displayToggle = false;
+bool LEDDelayActive = false;
+
+// Timing variables
 static uint64_t timeStampDisplay = 0;
 static uint64_t timeStampLED = 0;
 static uint64_t timeStampBPM = 0;
@@ -43,35 +54,21 @@ unsigned long lastMillis = 0;
 unsigned long LEDDelayStart;
 unsigned long LEDDPulseStart;
 
-// int analogValue = 0;
+// BPM variables
 int bpm = 120;
 int bpmMax = 240;
 int bpmMin = 30;
 int lastBpm = 0;
+
+// LED variables
 int LEDdelaytime = 100;
+int pulseWidth = 50;
+
+// Mode variable
 int mode = 0; // 0 = bpm, 1 = sound selection
 
-int LEDPin = 32;
-// int potiPin = 36;
-int pulseWidth = 50;
-// int frequency = 0;
-int triggerDistance = 0;
-float temp = 0.0;
-int displayRefresh = 500;
-
-int soundIndex = 0;
-
-const char *soundFiles[MAX_SOUND_FILES];
-
-// const char *soundFiles[] = {
-//     "/sound1.wav", // Index 0
-//     "/sound2.wav"};
-int soundFileCount; //= sizeof(soundFiles) / sizeof(soundFiles[0]);
-
+// Metronome state
 bool metronomRunning = true;
-bool displayMenu = false;
-bool displayToggle = false;
-bool LEDDelayActive;
 
 // Functions
 void pressed(Button2 &btn);
@@ -87,11 +84,8 @@ void LEDDelay();
 void loop();
 void displayUI(int displaySetting);
 
-
-
 void setup(void)
 {
-
     u8g2.begin();
     Serial.begin(115200);
     SPIFFS.begin();
@@ -115,10 +109,9 @@ void setup(void)
         Serial.println(file.name());
         file = root.openNextFile();
     }
-     // Load sound files
+    // Load sound files
     soundFileCount = loadSoundFiles(soundFiles, MAX_SOUND_FILES);
     Serial.printf("%d sound files loaded.\n", soundFileCount);
-
 
     // Enable the weak pull up resistors for encoder
     // ESP32Encoder::useInternalWeakPullResistors = UP;
@@ -169,55 +162,42 @@ void setup(void)
 void displayBPM()
 {
     displayUI(mode);
-    // if (displayMenu == false)
-    // {
-    // }
     if (displayMenu == true && displayToggle == true)
     {
-        // displayUI(1);
-        // print data on the SSD1306 display
-        // display.setCursor(0, 20);
-        // display.print("cooler sound");
-        // display.display();
         displayToggle = false;
     }
 
-    if (millis() - timeStampDisplay > displayRefresh)
+    if (millis() - timeStampDisplay > DisplayConfig::REFRESH_RATE)
     {
-
         timeStampDisplay = millis();
         Serial.println(timeStampDisplay);
-        // analogValue = analogRead(potiPin);
-        // bpm = map(analogValue, 0, 4095, 30, 240);
-        // bpm = encoderValue
-        temp = (1 / (bpm / 60.0)) * 1000.0;
-        triggerDistance = round(temp);
-        Serial.println("triggerDistance: " + String(triggerDistance));
-        Serial.println("tempo: " + String(temp));
-        Serial.println("BPM: " + String(bpm));
+
+        metronomeSettings.updateTriggerDistance();
+        Serial.println("triggerDistance: " + String(metronomeSettings.triggerDistance));
+        Serial.println("BPM: " + String(metronomeSettings.bpm));
 
         if (displayToggle == true && displayMenu == false)
         {
-            String bpmString = String(bpm);
+            String bpmString = String(metronomeSettings.bpm);
             display.clearDisplay();
             display.setCursor(0, 20);
             display.print(bpmString);
             display.display();
 
-            lastBpm = bpm;
+            lastBpm = metronomeSettings.bpm;
             displayToggle = false;
         }
 
-        if (bpm != lastBpm)
+        if (metronomeSettings.bpm != lastBpm)
         {
             if (displayMenu == false)
             {
-                String bpmString = String(bpm);
+                String bpmString = String(metronomeSettings.bpm);
                 display.print(bpmString);
                 display.clearDisplay();
                 display.setCursor(0, 20);
                 display.display();
-                lastBpm = bpm;
+                lastBpm = metronomeSettings.bpm;
             }
         }
     }
@@ -240,33 +220,23 @@ void audioClick(int soundIndex)
         Serial.println("Invalid sound index!");
     }
 }
-// void audioClick()
-// {
-//     if (soundIndex == 1)
-//     {
-//         audio.connecttoFS(SPIFFS, "/sound1.wav");
-//         // SD
-//     }
-
-//     if (soundIndex == 2)
-//     {
-//         audio.connecttoFS(SPIFFS, "/sound2.wav");
-//     }
-// }
 
 void pressed(Button2 &btn)
 {
     Serial.println("pressed");
 }
+
 void released(Button2 &btn)
 {
     Serial.print("released: ");
     Serial.println(btn.wasPressedFor());
 }
+
 void changed(Button2 &btn)
 {
     Serial.println("changed");
 }
+
 void click(Button2 &btn)
 {
     Serial.println("click\n");
@@ -282,24 +252,29 @@ void click(Button2 &btn)
     //     soundIndex = 1;
     // }
 }
+
 void longClickDetected(Button2 &btn)
 {
     Serial.println("long click detected");
     metronomRunning = !metronomRunning;
 }
+
 void longClick(Button2 &btn)
 {
     Serial.println("long click\n");
 }
+
 void doubleClick(Button2 &btn)
 {
     Serial.println("double click\n");
 }
+
 void tripleClick(Button2 &btn)
 {
     Serial.println("triple click\n");
     Serial.println(btn.getNumberOfClicks());
 }
+
 void tap(Button2 &btn)
 {
     Serial.println("tap");
@@ -310,6 +285,7 @@ void LEDDelay()
     LEDDelayStart = millis();
     LEDDelayActive = true;
 }
+
 void displayUI(int displayMode)
 {
     // Setup display
@@ -322,7 +298,7 @@ void displayUI(int displayMode)
     {
         // Set bpm as string
         u8g2.setFont(u8g_font_profont29);
-        String bpmString = String(bpm);
+        String bpmString = String(metronomeSettings.bpm);
         u8g2.drawStr(57, 41, bpmString.c_str()); // Draw tempo on the display
     }
     else if (displayMode == 1)
@@ -354,16 +330,16 @@ void handleEncoder()
     if (mode == 0)
     {
         // Keep max and min value on encoder
-        if ((encoder.getCount() / 2) > bpmMax)
+        if ((encoder.getCount() / 2) > metronomeSettings.bpmMax)
         {
-            encoder.setCount(bpmMax * 2);
+            encoder.setCount(metronomeSettings.bpmMax * 2);
         }
 
-        if ((encoder.getCount() / 2) < bpmMin)
+        if ((encoder.getCount() / 2) < metronomeSettings.bpmMin)
         {
-            encoder.setCount(bpmMin * 2);
+            encoder.setCount(metronomeSettings.bpmMin * 2);
         }
-        bpm = encoder.getCount() / 2;
+        metronomeSettings.bpm = encoder.getCount() / 2;
         // Serial.println("Encoder count = " + String((int32_t)encoder.getCount()));
         // Serial.println("bpmcount = " + String(bpm));
     }
@@ -373,6 +349,7 @@ void handleEncoder()
         soundIndex = encoder.getCount() / 2 % soundFileCount;
     }
 }
+
 void loop()
 {
     displayBPM();
@@ -380,24 +357,25 @@ void loop()
 
     button.loop();
 
-    if (millis() - timeStampBPM > triggerDistance)
+    if (millis() - timeStampBPM > metronomeSettings.triggerDistance)
     {
-
         if (metronomRunning == true)
         {
             audioClick(soundIndex);
+            digitalWrite(LEDPin, HIGH);
+            timeStampLED = millis();
             LEDDelay();
         }
         timeStampBPM = millis();
     }
 
-    if ((millis() - LEDDelayStart > LEDdelaytime) && LEDDelayActive == true)
+    if ((millis() - LEDDelayStart > metronomeSettings.ledDelayTime) && LEDDelayActive == true)
     {
         pulseLED();
         LEDDelayActive = false;
     }
 
-    if (millis() - timeStampLED > pulseWidth)
+    if (millis() - timeStampLED > metronomeSettings.pulseWidth)
     {
         digitalWrite(LEDPin, LOW);
     }
