@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 // Pin Definitions
-struct PinConfig
+namespace PinConfig
 {
     static const int CLK = 13; // CLK ENCODER
     static const int DT = 15;  // DT ENCODER
@@ -13,15 +13,15 @@ struct PinConfig
     static const int I2S_DOUT = 25;
     static const int I2S_BCLK = 26;
     static const int I2S_LRC = 27;
-};
+}
 
 // Display Configuration
-struct DisplayConfig
+namespace DisplayConfig
 {
     static const int SCREEN_WIDTH = 128;
     static const int SCREEN_HEIGHT = 64;
     static const int REFRESH_RATE = 500; // ms
-};
+}
 
 // Metronome Settings
 struct MetronomeSettings
@@ -75,4 +75,4 @@ struct TimingConfig
     }
 };
 
-#endif // METRONOME_CONFIG_H
+#endif // CONFIG_H

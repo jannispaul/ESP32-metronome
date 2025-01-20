@@ -5,7 +5,6 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <U8g2lib.h>
-#include "Arduino.h"
 #include "Audio.h"
 #include "FS.h"
 #include "SPIFFS.h"
@@ -26,15 +25,6 @@ Audio audio;
 #define OLED_RESET LED_BUILTIN
 Adafruit_SSD1306 display(DisplayConfig::SCREEN_WIDTH, DisplayConfig::SCREEN_HEIGHT, &Wire, OLED_RESET);
 
-// Pin definitions
-#define CLK 13 // CLK ENCODER
-#define DT 15  // DT ENCODER
-#define BUTTON_PIN 2
-#define I2S_DOUT 25
-#define I2S_BCLK 26
-#define I2S_LRC 27
-#define LEDPin 32
-
 // Sound configuration
 int soundIndex = 0;
 const char *soundFiles[MAX_SOUND_FILES];
@@ -53,12 +43,6 @@ static uint64_t timeStampBPM = 0;
 unsigned long lastMillis = 0;
 unsigned long LEDDelayStart;
 unsigned long LEDDPulseStart;
-
-// BPM variables
-int bpm = 120;
-int bpmMax = 240;
-int bpmMin = 30;
-int lastBpm = 0;
 
 // LED variables
 int LEDdelaytime = 100;
@@ -131,10 +115,10 @@ void setup(void)
     // Enable the weak pull up resistors for encoder
     // ESP32Encoder::useInternalWeakPullResistors = UP;
     ESP32Encoder::useInternalWeakPullResistors = puType::up;
-    encoder.attachHalfQuad(DT, CLK);
-    encoder.setCount(bpm * 2);
+    encoder.attachHalfQuad(PinConfig::DT, PinConfig::CLK);
+    encoder.setCount(metronomeSettings.bpm * 2);
 
-    button.begin(BUTTON_PIN);
+    button.begin(PinConfig::BUTTON_PIN);
     // button.setLongClickTime(1000);
     // button.setDoubleClickTime(400);
 
@@ -154,8 +138,8 @@ void setup(void)
     button.setDoubleClickHandler(doubleClick);
     button.setTripleClickHandler(tripleClick);
 
-    pinMode(LEDPin, OUTPUT);
-    digitalWrite(LEDPin, LOW);
+    pinMode(PinConfig::LED_PIN, OUTPUT);
+    digitalWrite(PinConfig::LED_PIN, LOW);
     // pinMode(potiPin, INPUT);
 
     // Display failsafe
@@ -167,7 +151,7 @@ void setup(void)
     }
 
     // Audio Setup
-    audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
+    audio.setPinout(PinConfig::I2S_BCLK, PinConfig::I2S_LRC, PinConfig::I2S_DOUT);
     audio.setVolume(6); // default 0...21
     //  or alternative
     // audio.setVolumeSteps(100);  // max 255
@@ -188,7 +172,7 @@ void displayBPM()
             updateDisplayWithBPM();
         }
 
-        if (metronomeSettings.bpm != lastBpm && !displayMenu)
+        if (metronomeSettings.bpm != metronomeSettings.lastBpm && !displayMenu)
         {
             updateDisplayWithBPM();
         }
@@ -224,14 +208,14 @@ void updateDisplayWithBPM()
     display.setCursor(0, 20);
     display.print(bpmString);
     display.display();
-    lastBpm = metronomeSettings.bpm;
+    metronomeSettings.lastBpm = metronomeSettings.bpm;
     displayToggle = false;
 }
 
 void pulseLED()
 {
     timeStampLED = millis();
-    digitalWrite(LEDPin, HIGH);
+    digitalWrite(PinConfig::LED_PIN, HIGH);
 }
 
 void audioClick(int soundIndex)
@@ -410,7 +394,7 @@ void loop()
 
     if (shouldTurnOffLED())
     {
-        digitalWrite(LEDPin, LOW);
+        digitalWrite(PinConfig::LED_PIN, LOW);
     }
 
     audio.loop();
@@ -426,7 +410,7 @@ void triggerMetronome()
     if (metronomRunning)
     {
         audioClick(soundIndex);
-        digitalWrite(LEDPin, HIGH);
+        digitalWrite(PinConfig::LED_PIN, HIGH);
         timeStampLED = millis();
         LEDDelay();
     }
