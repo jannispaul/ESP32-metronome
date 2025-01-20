@@ -83,6 +83,10 @@ void tap(Button2 &btn);
 void LEDDelay();
 void loop();
 void displayUI(int displaySetting);
+void toggleMetronomeState();
+void handleEncoder();
+void adjustBPM();
+void selectSound();
 
 void setup(void)
 {
@@ -229,7 +233,8 @@ void pressed(Button2 &btn)
 
 void released(Button2 &btn)
 {
-    Serial.print("released: ");
+    // Log the button release event and the duration it was pressed
+    Serial.print("Button released after: ");
     Serial.println(btn.wasPressedFor());
 }
 
@@ -240,23 +245,32 @@ void changed(Button2 &btn)
 
 void click(Button2 &btn)
 {
-    Serial.println("click\n");
+    // Log the button click event
+    Serial.println("Button clicked");
+
+    // Toggle the display menu and mode
     displayMenu = !displayMenu;
     displayToggle = true;
     mode = !mode;
-    // if (soundIndex < 2)
-    // {
+
+    // Uncomment and adjust the logic below if sound index cycling is needed
+    // if (soundIndex < 2) {
     //     soundIndex++;
-    // }
-    // else
-    // {
+    // } else {
     //     soundIndex = 1;
     // }
 }
 
 void longClickDetected(Button2 &btn)
 {
-    Serial.println("long click detected");
+    Serial.println("Long click detected");
+
+    // Toggle the metronome running state
+    toggleMetronomeState();
+}
+
+void toggleMetronomeState()
+{
     metronomRunning = !metronomRunning;
 }
 
@@ -327,28 +341,33 @@ void displayUI(int displayMode)
 
 void handleEncoder()
 {
-    // BPM Mode
     if (mode == 0)
     {
-        // Keep max and min value on encoder
-        if ((encoder.getCount() / 2) > metronomeSettings.bpmMax)
-        {
-            encoder.setCount(metronomeSettings.bpmMax * 2);
-        }
-
-        if ((encoder.getCount() / 2) < metronomeSettings.bpmMin)
-        {
-            encoder.setCount(metronomeSettings.bpmMin * 2);
-        }
-        metronomeSettings.bpm = encoder.getCount() / 2;
-        // Serial.println("Encoder count = " + String((int32_t)encoder.getCount()));
-        // Serial.println("bpmcount = " + String(bpm));
+        adjustBPM();
     }
-    // Sound selection mode
     else if (mode == 1)
     {
-        soundIndex = encoder.getCount() / 2 % soundFileCount;
+        selectSound();
     }
+}
+
+void adjustBPM()
+{
+    int encoderValue = encoder.getCount() / 2;
+    if (encoderValue > metronomeSettings.bpmMax)
+    {
+        encoder.setCount(metronomeSettings.bpmMax * 2);
+    }
+    else if (encoderValue < metronomeSettings.bpmMin)
+    {
+        encoder.setCount(metronomeSettings.bpmMin * 2);
+    }
+    metronomeSettings.bpm = encoderValue;
+}
+
+void selectSound()
+{
+    soundIndex = (encoder.getCount() / 2) % soundFileCount;
 }
 
 void loop()
