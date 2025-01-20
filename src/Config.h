@@ -36,6 +36,7 @@ struct MetronomeSettings
     int mode; // 0 = bpm, 1 = sound selection
     float volumeFactor = 100 / 21;
     int triggerDistance; // Calculated from BPM
+    int volume = 10;     // 50% of 21
 
     MetronomeSettings() : bpm(120),
                           bpmMax(240),

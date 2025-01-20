@@ -37,7 +37,7 @@ int LEDdelaytime = 100;
 int pulseWidth = 50;
 
 // Mode variable
-int mode = 0; // 0 = bpm, 1 = sound selection
+int mode = 0; // 0 = bpm, 1 = sound selection, 2 = volume
 
 // Metronome state
 bool metronomRunning = true;
@@ -54,7 +54,7 @@ void tripleClick(Button2 &btn);
 void tap(Button2 &btn);
 void LEDDelay();
 void loop();
-void displayUI();
+void updateUI();
 void toggleMetronomeRunningState();
 void handleEncoder();
 void updateBPM();
@@ -103,7 +103,6 @@ void setup(void)
     // ESP32Encoder::useInternalWeakPullResistors = UP;
     ESP32Encoder::useInternalWeakPullResistors = puType::up;
     encoder.attachHalfQuad(PinConfig::DT, PinConfig::CLK);
-    // encoder.setCount(metronomeSettings.bpm * 2);
 
     button.begin(PinConfig::BUTTON_PIN);
     button.setLongClickTime(1000);
@@ -143,7 +142,7 @@ void setup(void)
     //  or alternative
 
     // About 50% volume
-    audio.setVolume(10);
+    audio.setVolume(metronomeSettings.volume);
 
     // Set encoder to initial bpm
     encoder.setCount(metronomeSettings.bpm * 2);
@@ -152,7 +151,7 @@ void setup(void)
 void handleMode()
 {
     handleEncoder();
-    displayUI();
+    updateUI();
     logDisplayInfo();
 }
 
@@ -222,13 +221,13 @@ void updateMode()
     }
     else if (mode == 1)
     {
-        encoder.setCount(soundIndex);
+        encoder.setCount(soundIndex * 2);
         Serial.println("updateMode: sound: " + String(soundIndex));
     }
     else if (mode == 2)
     {
         uint8_t volume = audio.getVolume();
-        encoder.setCount(volume * metronomeSettings.volumeFactor);
+        encoder.setCount(volume * metronomeSettings.volumeFactor * 2);
         Serial.println("updateMode: volume: " + String(volume));
     }
 }
@@ -273,7 +272,7 @@ void LEDDelay()
     LEDDelayActive = true;
 }
 
-void displayUI()
+void updateUI()
 {
     // Setup display
     u8g2.clearBuffer();
@@ -302,7 +301,7 @@ void displayUI()
     {
         u8g2.setFont(u8g_font_profont29);
 
-        String volumeString = String(static_cast<int>(audio.getVolume() * metronomeSettings.volumeFactor));
+        String volumeString = String((audio.getVolume() * 100) / 21) + "%";
         u8g2.drawStr(57, 41, volumeString.c_str()); // Draw volume on the display
         u8g2.setFont(u8g_font_5x7);                 // Change this to the correct font name
         u8g2.drawStr(36, 59, "Volume");
@@ -335,29 +334,29 @@ void handleEncoder()
         updateVolume();
     }
 }
+
 void updateVolume()
 {
-    // Volume is 0-21
+
     int encoderValue = encoder.getCount() / 2;
+
     Serial.println("Volume encoderValue: " + String(encoderValue));
     // Constrain volume between 0 and 100
     if (encoderValue > 100)
     {
-        encoder.setCount(200); // 100 * 2 since we divide by 2
+        encoder.setCount(100 * 2);
     }
     else if (encoderValue < 0)
     {
         encoder.setCount(0);
     }
-    // Translate encoder value to volume (0-21)
-    audio.setVolume(std::round(encoderValue / metronomeSettings.volumeFactor));
+    // Translate encoder value to volume (0-21) with linear speed adjustment
+    audio.setVolume(std::round(encoderValue * 21 / 100));
 }
 
 void updateBPM()
 {
 
-    if (mode != 0)
-        return;
     int encoderValue = encoder.getCount() / 2;
     Serial.println("BPM encoderValue: " + String(encoderValue));
 
