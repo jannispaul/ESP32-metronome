@@ -56,7 +56,7 @@ void LEDDelay();
 void loop();
 void displayUI(int displaySetting);
 void toggleMetronomeState();
-void handleEncoder();
+void handleEncoder(int mode);
 void adjustBPM();
 void selectSound();
 bool shouldUpdateDisplay();
@@ -68,6 +68,7 @@ bool shouldPulseLED();
 void pulseLED();
 bool shouldTurnOffLED();
 void changeVolume();
+void runMetronome(int mode);
 
 void setup(void)
 {
@@ -102,7 +103,7 @@ void setup(void)
     // ESP32Encoder::useInternalWeakPullResistors = UP;
     ESP32Encoder::useInternalWeakPullResistors = puType::up;
     encoder.attachHalfQuad(PinConfig::DT, PinConfig::CLK);
-    encoder.setCount(metronomeSettings.bpm * 2);
+    // encoder.setCount(metronomeSettings.bpm * 2);
 
     button.begin(PinConfig::BUTTON_PIN);
     button.setLongClickTime(1000);
@@ -144,25 +145,12 @@ void setup(void)
     audio.setVolume(22);
 }
 
-void displayBPM(int mode)
+void handleMode(int mode)
 {
+    runMetronome(mode);
     displayUI(mode);
-
-    if (shouldUpdateDisplay())
-    {
-        timingConfig.displayTimestamp = millis();
-        logDisplayInfo();
-
-        if (mode == 0 && metronomeSettings.bpm != metronomeSettings.lastBpm)
-        {
-            updateDisplayWithBPM();
-        }
-    }
-}
-
-bool shouldUpdateDisplay()
-{
-    return millis() - timingConfig.displayTimestamp > DisplayConfig::REFRESH_RATE;
+    handleEncoder(mode);
+    logDisplayInfo();
 }
 
 void logDisplayInfo()
@@ -174,14 +162,13 @@ void logDisplayInfo()
     Serial.println("mode: " + String(mode));
 }
 
-void updateDisplayWithBPM()
+void runMetronome(int mode)
 {
-    String bpmString = String(metronomeSettings.bpm);
-    display.clearDisplay();
-    display.setCursor(0, 20);
-    display.print(bpmString);
-    display.display();
-    metronomeSettings.lastBpm = metronomeSettings.bpm;
+    if (mode == 0)
+    {
+        encoder.setCount(metronomeSettings.bpm * 2);
+        metronomeSettings.lastBpm = metronomeSettings.bpm;
+    }
 }
 
 void pulseLED()
@@ -311,7 +298,7 @@ void displayUI(int mode)
     u8g2.sendBuffer();
 }
 
-void handleEncoder()
+void handleEncoder(int mode)
 {
     if (mode == 0)
     {
@@ -363,8 +350,9 @@ void selectSound()
 
 void loop()
 {
-    displayBPM(mode);
-    handleEncoder();
+    // displayBPM(mode);
+    handleMode(mode);
+    // handleEncoder();
     button.loop();
 
     if (shouldTriggerMetronome())
