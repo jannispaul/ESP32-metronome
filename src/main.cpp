@@ -223,7 +223,8 @@ void audioClick(int soundIndex)
 
 void pressed(Button2 &btn)
 {
-    Serial.println("pressed");
+    // Log the button press event
+    Serial.println("Button pressed");
 }
 
 void released(Button2 &btn)
