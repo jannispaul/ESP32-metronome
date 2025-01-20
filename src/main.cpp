@@ -88,6 +88,12 @@ void handleEncoder();
 void adjustBPM();
 void selectSound();
 
+// Add these function declarations
+void updateDisplayUI();
+bool shouldUpdateDisplay();
+void logDisplayInfo();
+void updateDisplayWithBPM();
+
 void setup(void)
 {
     u8g2.begin();
@@ -165,46 +171,56 @@ void setup(void)
 
 void displayBPM()
 {
+    updateDisplayUI();
+
+    if (shouldUpdateDisplay())
+    {
+        timeStampDisplay = millis();
+        logDisplayInfo();
+
+        if (displayToggle && !displayMenu)
+        {
+            updateDisplayWithBPM();
+        }
+
+        if (metronomeSettings.bpm != lastBpm && !displayMenu)
+        {
+            updateDisplayWithBPM();
+        }
+    }
+}
+
+void updateDisplayUI()
+{
     displayUI(mode);
-    if (displayMenu == true && displayToggle == true)
+    if (displayMenu && displayToggle)
     {
         displayToggle = false;
     }
+}
 
-    if (millis() - timeStampDisplay > DisplayConfig::REFRESH_RATE)
-    {
-        timeStampDisplay = millis();
-        Serial.println(timeStampDisplay);
+bool shouldUpdateDisplay()
+{
+    return millis() - timeStampDisplay > DisplayConfig::REFRESH_RATE;
+}
 
-        metronomeSettings.updateTriggerDistance();
-        Serial.println("triggerDistance: " + String(metronomeSettings.triggerDistance));
-        Serial.println("BPM: " + String(metronomeSettings.bpm));
+void logDisplayInfo()
+{
+    Serial.println(timeStampDisplay);
+    metronomeSettings.updateTriggerDistance();
+    Serial.println("triggerDistance: " + String(metronomeSettings.triggerDistance));
+    Serial.println("BPM: " + String(metronomeSettings.bpm));
+}
 
-        if (displayToggle == true && displayMenu == false)
-        {
-            String bpmString = String(metronomeSettings.bpm);
-            display.clearDisplay();
-            display.setCursor(0, 20);
-            display.print(bpmString);
-            display.display();
-
-            lastBpm = metronomeSettings.bpm;
-            displayToggle = false;
-        }
-
-        if (metronomeSettings.bpm != lastBpm)
-        {
-            if (displayMenu == false)
-            {
-                String bpmString = String(metronomeSettings.bpm);
-                display.print(bpmString);
-                display.clearDisplay();
-                display.setCursor(0, 20);
-                display.display();
-                lastBpm = metronomeSettings.bpm;
-            }
-        }
-    }
+void updateDisplayWithBPM()
+{
+    String bpmString = String(metronomeSettings.bpm);
+    display.clearDisplay();
+    display.setCursor(0, 20);
+    display.print(bpmString);
+    display.display();
+    lastBpm = metronomeSettings.bpm;
+    displayToggle = false;
 }
 
 void pulseLED()
