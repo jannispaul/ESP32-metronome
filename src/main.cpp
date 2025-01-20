@@ -54,10 +54,10 @@ void tripleClick(Button2 &btn);
 void tap(Button2 &btn);
 void LEDDelay();
 void loop();
-void displayUI(int displaySetting);
-void toggleMetronomeState();
-void handleEncoder(int mode);
-void adjustBPM();
+void displayUI();
+void toggleMetronomeRunningState();
+void handleEncoder();
+void updateBPM();
 void selectSound();
 bool shouldUpdateDisplay();
 void logDisplayInfo();
@@ -67,8 +67,8 @@ void triggerMetronome();
 bool shouldPulseLED();
 void pulseLED();
 bool shouldTurnOffLED();
-void changeVolume();
-void runMetronome(int mode);
+void updateVolume();
+void updateMode();
 
 void setup(void)
 {
@@ -141,15 +141,18 @@ void setup(void)
     audio.setPinout(PinConfig::I2S_BCLK, PinConfig::I2S_LRC, PinConfig::I2S_DOUT);
     audio.setVolume(6); // default 0...21
     //  or alternative
-    // audio.setVolumeSteps(100);  // max 255
-    audio.setVolume(22);
+
+    // About 50% volume
+    audio.setVolume(10);
+
+    // Set encoder to initial bpm
+    encoder.setCount(metronomeSettings.bpm * 2);
 }
 
-void handleMode(int mode)
+void handleMode()
 {
-    runMetronome(mode);
-    displayUI(mode);
-    handleEncoder(mode);
+    handleEncoder();
+    displayUI();
     logDisplayInfo();
 }
 
@@ -160,15 +163,6 @@ void logDisplayInfo()
     Serial.println("triggerDistance: " + String(metronomeSettings.triggerDistance));
     Serial.println("BPM: " + String(metronomeSettings.bpm));
     Serial.println("mode: " + String(mode));
-}
-
-void runMetronome(int mode)
-{
-    if (mode == 0)
-    {
-        encoder.setCount(metronomeSettings.bpm * 2);
-        metronomeSettings.lastBpm = metronomeSettings.bpm;
-    }
 }
 
 void pulseLED()
@@ -212,8 +206,31 @@ void click(Button2 &btn)
     // Log the button click event
     Serial.println("Button clicked");
 
+    updateMode();
+}
+// change mode function
+void updateMode()
+{
+
     // Go through modes 0 = bpm, 1 = sound, 2 = volume
     mode = (mode + 1) % 3;
+    // Set encoder to last value of the mode
+    if (mode == 0)
+    {
+        encoder.setCount(metronomeSettings.bpm * 2);
+        Serial.println("updateMode: bpm: " + String(metronomeSettings.bpm));
+    }
+    else if (mode == 1)
+    {
+        encoder.setCount(soundIndex);
+        Serial.println("updateMode: sound: " + String(soundIndex));
+    }
+    else if (mode == 2)
+    {
+        uint8_t volume = audio.getVolume();
+        encoder.setCount(volume * metronomeSettings.volumeFactor);
+        Serial.println("updateMode: volume: " + String(volume));
+    }
 }
 
 void longClickDetected(Button2 &btn)
@@ -221,10 +238,10 @@ void longClickDetected(Button2 &btn)
     Serial.println("Long click detected");
 
     // Toggle the metronome running state
-    toggleMetronomeState();
+    toggleMetronomeRunningState();
 }
 
-void toggleMetronomeState()
+void toggleMetronomeRunningState()
 {
     metronomRunning = !metronomRunning;
 }
@@ -256,7 +273,7 @@ void LEDDelay()
     LEDDelayActive = true;
 }
 
-void displayUI(int mode)
+void displayUI()
 {
     // Setup display
     u8g2.clearBuffer();
@@ -283,7 +300,12 @@ void displayUI(int mode)
     }
     else if (mode == 2)
     {
-        u8g2.drawStr(36, 59, "Change volume");
+        u8g2.setFont(u8g_font_profont29);
+
+        String volumeString = String(static_cast<int>(audio.getVolume() * metronomeSettings.volumeFactor));
+        u8g2.drawStr(57, 41, volumeString.c_str()); // Draw volume on the display
+        u8g2.setFont(u8g_font_5x7);                 // Change this to the correct font name
+        u8g2.drawStr(36, 59, "Volume");
     }
     u8g2.drawXBM(0, 48, 16, 16, image_Property_1_Battery_100_bits);
     u8g2.drawXBM(0, 24, 16, 16, image_Property_1_Volume_bits);
@@ -298,11 +320,11 @@ void displayUI(int mode)
     u8g2.sendBuffer();
 }
 
-void handleEncoder(int mode)
+void handleEncoder()
 {
     if (mode == 0)
     {
-        adjustBPM();
+        updateBPM();
     }
     else if (mode == 1)
     {
@@ -310,12 +332,14 @@ void handleEncoder(int mode)
     }
     else if (mode == 2)
     {
-        changeVolume();
+        updateVolume();
     }
 }
-void changeVolume()
+void updateVolume()
 {
+    // Volume is 0-21
     int encoderValue = encoder.getCount() / 2;
+    Serial.println("Volume encoderValue: " + String(encoderValue));
     // Constrain volume between 0 and 100
     if (encoderValue > 100)
     {
@@ -325,13 +349,19 @@ void changeVolume()
     {
         encoder.setCount(0);
     }
-    // Set volume (0-100)
-    audio.setVolume(encoderValue);
+    // Translate encoder value to volume (0-21)
+    audio.setVolume(std::round(encoderValue / metronomeSettings.volumeFactor));
 }
 
-void adjustBPM()
+void updateBPM()
 {
+
+    if (mode != 0)
+        return;
     int encoderValue = encoder.getCount() / 2;
+    Serial.println("BPM encoderValue: " + String(encoderValue));
+
+    // Make sure the encoder value is within the valid range
     if (encoderValue > metronomeSettings.bpmMax)
     {
         encoder.setCount(metronomeSettings.bpmMax * 2);
@@ -340,19 +370,27 @@ void adjustBPM()
     {
         encoder.setCount(metronomeSettings.bpmMin * 2);
     }
+
     metronomeSettings.bpm = encoderValue;
 }
 
 void selectSound()
 {
-    soundIndex = (encoder.getCount() / 2) % soundFileCount;
+    // prevent when encode becomes negative start from the end
+    if (encoder.getCount() < 0)
+    {
+        soundIndex = soundFileCount - 1;
+    }
+    else
+    {
+        soundIndex = (encoder.getCount() / 2) % soundFileCount;
+    }
 }
 
 void loop()
 {
-    // displayBPM(mode);
-    handleMode(mode);
-    // handleEncoder();
+
+    handleMode();
     button.loop();
 
     if (shouldTriggerMetronome())

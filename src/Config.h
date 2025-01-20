@@ -33,7 +33,8 @@ struct MetronomeSettings
     int pulseWidth;   // LED pulse width
     int ledDelayTime; // LED delay time
     bool isRunning;
-    int mode;            // 0 = bpm, 1 = sound selection
+    int mode; // 0 = bpm, 1 = sound selection
+    float volumeFactor = 100 / 21;
     int triggerDistance; // Calculated from BPM
 
     MetronomeSettings() : bpm(120),
@@ -50,6 +51,7 @@ struct MetronomeSettings
 
     void updateTriggerDistance()
     {
+        // Calculate trigger distance in milliseconds
         float temp = (1.0f / (bpm / 60.0f)) * 1000.0f;
         triggerDistance = round(temp);
     }
