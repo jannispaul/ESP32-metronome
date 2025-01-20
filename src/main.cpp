@@ -30,9 +30,6 @@ int soundIndex = 0;
 const char *soundFiles[MAX_SOUND_FILES];
 int soundFileCount;
 
-// Display state
-bool displayMenu = false;
-bool displayToggle = false;
 bool LEDDelayActive = false;
 
 // LED variables
@@ -45,7 +42,7 @@ int mode = 0; // 0 = bpm, 1 = sound selection
 // Metronome state
 bool metronomRunning = true;
 
-// Functions
+// Functions declarations
 void pressed(Button2 &btn);
 void released(Button2 &btn);
 void changed(Button2 &btn);
@@ -62,9 +59,6 @@ void toggleMetronomeState();
 void handleEncoder();
 void adjustBPM();
 void selectSound();
-
-// Add these function declarations
-void updateDisplayUI();
 bool shouldUpdateDisplay();
 void logDisplayInfo();
 void updateDisplayWithBPM();
@@ -73,6 +67,7 @@ void triggerMetronome();
 bool shouldPulseLED();
 void pulseLED();
 bool shouldTurnOffLED();
+void changeVolume();
 
 void setup(void)
 {
@@ -110,7 +105,7 @@ void setup(void)
     encoder.setCount(metronomeSettings.bpm * 2);
 
     button.begin(PinConfig::BUTTON_PIN);
-    // button.setLongClickTime(1000);
+    button.setLongClickTime(1000);
     // button.setDoubleClickTime(400);
 
     Serial.println(" Longpress Time:\t" + String(button.getLongClickTime()) + "ms");
@@ -149,33 +144,19 @@ void setup(void)
     audio.setVolume(22);
 }
 
-void displayBPM()
+void displayBPM(int mode)
 {
-    updateDisplayUI();
+    displayUI(mode);
 
     if (shouldUpdateDisplay())
     {
         timingConfig.displayTimestamp = millis();
         logDisplayInfo();
 
-        if (displayToggle && !displayMenu)
+        if (mode == 0 && metronomeSettings.bpm != metronomeSettings.lastBpm)
         {
             updateDisplayWithBPM();
         }
-
-        if (metronomeSettings.bpm != metronomeSettings.lastBpm && !displayMenu)
-        {
-            updateDisplayWithBPM();
-        }
-    }
-}
-
-void updateDisplayUI()
-{
-    displayUI(mode);
-    if (displayMenu && displayToggle)
-    {
-        displayToggle = false;
     }
 }
 
@@ -190,6 +171,7 @@ void logDisplayInfo()
     metronomeSettings.updateTriggerDistance();
     Serial.println("triggerDistance: " + String(metronomeSettings.triggerDistance));
     Serial.println("BPM: " + String(metronomeSettings.bpm));
+    Serial.println("mode: " + String(mode));
 }
 
 void updateDisplayWithBPM()
@@ -200,7 +182,6 @@ void updateDisplayWithBPM()
     display.print(bpmString);
     display.display();
     metronomeSettings.lastBpm = metronomeSettings.bpm;
-    displayToggle = false;
 }
 
 void pulseLED()
@@ -244,17 +225,8 @@ void click(Button2 &btn)
     // Log the button click event
     Serial.println("Button clicked");
 
-    // Toggle the display menu and mode
-    displayMenu = !displayMenu;
-    displayToggle = true;
-    mode = !mode;
-
-    // Uncomment and adjust the logic below if sound index cycling is needed
-    // if (soundIndex < 2) {
-    //     soundIndex++;
-    // } else {
-    //     soundIndex = 1;
-    // }
+    // Go through modes 0 = bpm, 1 = sound, 2 = volume
+    mode = (mode + 1) % 3;
 }
 
 void longClickDetected(Button2 &btn)
@@ -297,22 +269,22 @@ void LEDDelay()
     LEDDelayActive = true;
 }
 
-void displayUI(int displayMode)
+void displayUI(int mode)
 {
     // Setup display
     u8g2.clearBuffer();
     u8g2.setFontMode(1);
     u8g2.setBitmapMode(1);
 
-    // Draw ui based on displayMode
-    if (displayMode == 0)
+    // Draw ui based on mode
+    if (mode == 0)
     {
         // Set bpm as string
         u8g2.setFont(u8g_font_profont29);
         String bpmString = String(metronomeSettings.bpm);
         u8g2.drawStr(57, 41, bpmString.c_str()); // Draw tempo on the display
     }
-    else if (displayMode == 1)
+    else if (mode == 1)
     {
         u8g2.setFont(u8g_font_profont29);
         String soundString = "S" + String(soundIndex);
@@ -321,6 +293,10 @@ void displayUI(int displayMode)
         // u8g2.drawXBM(0, 48, 16, 16, image_Property_1_Battery_75_bits);
         u8g2.setFont(u8g_font_5x7); // Change this to the correct font name
         u8g2.drawStr(36, 59, "Select a sound");
+    }
+    else if (mode == 2)
+    {
+        u8g2.drawStr(36, 59, "Change volume");
     }
     u8g2.drawXBM(0, 48, 16, 16, image_Property_1_Battery_100_bits);
     u8g2.drawXBM(0, 24, 16, 16, image_Property_1_Volume_bits);
@@ -345,6 +321,25 @@ void handleEncoder()
     {
         selectSound();
     }
+    else if (mode == 2)
+    {
+        changeVolume();
+    }
+}
+void changeVolume()
+{
+    int encoderValue = encoder.getCount() / 2;
+    // Constrain volume between 0 and 100
+    if (encoderValue > 100)
+    {
+        encoder.setCount(200); // 100 * 2 since we divide by 2
+    }
+    else if (encoderValue < 0)
+    {
+        encoder.setCount(0);
+    }
+    // Set volume (0-100)
+    audio.setVolume(encoderValue);
 }
 
 void adjustBPM()
@@ -368,7 +363,7 @@ void selectSound()
 
 void loop()
 {
-    displayBPM();
+    displayBPM(mode);
     handleEncoder();
     button.loop();
 
