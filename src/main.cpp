@@ -35,15 +35,6 @@ bool displayMenu = false;
 bool displayToggle = false;
 bool LEDDelayActive = false;
 
-// Timing variables
-static uint64_t timeStampDisplay = 0;
-static uint64_t timeStampLED = 0;
-static uint64_t timeStampBPM = 0;
-
-unsigned long lastMillis = 0;
-unsigned long LEDDelayStart;
-unsigned long LEDDPulseStart;
-
 // LED variables
 int LEDdelaytime = 100;
 int pulseWidth = 50;
@@ -164,7 +155,7 @@ void displayBPM()
 
     if (shouldUpdateDisplay())
     {
-        timeStampDisplay = millis();
+        timingConfig.displayTimestamp = millis();
         logDisplayInfo();
 
         if (displayToggle && !displayMenu)
@@ -190,12 +181,12 @@ void updateDisplayUI()
 
 bool shouldUpdateDisplay()
 {
-    return millis() - timeStampDisplay > DisplayConfig::REFRESH_RATE;
+    return millis() - timingConfig.displayTimestamp > DisplayConfig::REFRESH_RATE;
 }
 
 void logDisplayInfo()
 {
-    Serial.println(timeStampDisplay);
+    Serial.println(timingConfig.displayTimestamp);
     metronomeSettings.updateTriggerDistance();
     Serial.println("triggerDistance: " + String(metronomeSettings.triggerDistance));
     Serial.println("BPM: " + String(metronomeSettings.bpm));
@@ -214,7 +205,7 @@ void updateDisplayWithBPM()
 
 void pulseLED()
 {
-    timeStampLED = millis();
+    timingConfig.ledTimestamp = millis();
     digitalWrite(PinConfig::LED_PIN, HIGH);
 }
 
@@ -302,7 +293,7 @@ void tap(Button2 &btn)
 
 void LEDDelay()
 {
-    LEDDelayStart = millis();
+    timingConfig.LEDDelayStart = millis();
     LEDDelayActive = true;
 }
 
@@ -402,7 +393,7 @@ void loop()
 
 bool shouldTriggerMetronome()
 {
-    return millis() - timeStampBPM > metronomeSettings.triggerDistance;
+    return millis() - timingConfig.bpmTimestamp > metronomeSettings.triggerDistance;
 }
 
 void triggerMetronome()
@@ -411,18 +402,18 @@ void triggerMetronome()
     {
         audioClick(soundIndex);
         digitalWrite(PinConfig::LED_PIN, HIGH);
-        timeStampLED = millis();
+        timingConfig.ledTimestamp = millis();
         LEDDelay();
     }
-    timeStampBPM = millis();
+    timingConfig.bpmTimestamp = millis();
 }
 
 bool shouldPulseLED()
 {
-    return (millis() - LEDDelayStart > metronomeSettings.ledDelayTime) && LEDDelayActive;
+    return (millis() - timingConfig.LEDDelayStart > metronomeSettings.ledDelayTime) && LEDDelayActive;
 }
 
 bool shouldTurnOffLED()
 {
-    return millis() - timeStampLED > metronomeSettings.pulseWidth;
+    return millis() - timingConfig.ledTimestamp > metronomeSettings.pulseWidth;
 }
