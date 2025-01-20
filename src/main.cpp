@@ -93,6 +93,11 @@ void updateDisplayUI();
 bool shouldUpdateDisplay();
 void logDisplayInfo();
 void updateDisplayWithBPM();
+bool shouldTriggerMetronome();
+void triggerMetronome();
+bool shouldPulseLED();
+void pulseLED();
+bool shouldTurnOffLED();
 
 void setup(void)
 {
@@ -390,31 +395,50 @@ void loop()
 {
     displayBPM();
     handleEncoder();
-
     button.loop();
 
-    if (millis() - timeStampBPM > metronomeSettings.triggerDistance)
+    if (shouldTriggerMetronome())
     {
-        if (metronomRunning == true)
-        {
-            audioClick(soundIndex);
-            digitalWrite(LEDPin, HIGH);
-            timeStampLED = millis();
-            LEDDelay();
-        }
-        timeStampBPM = millis();
+        triggerMetronome();
     }
 
-    if ((millis() - LEDDelayStart > metronomeSettings.ledDelayTime) && LEDDelayActive == true)
+    if (shouldPulseLED())
     {
         pulseLED();
         LEDDelayActive = false;
     }
 
-    if (millis() - timeStampLED > metronomeSettings.pulseWidth)
+    if (shouldTurnOffLED())
     {
         digitalWrite(LEDPin, LOW);
     }
 
     audio.loop();
+}
+
+bool shouldTriggerMetronome()
+{
+    return millis() - timeStampBPM > metronomeSettings.triggerDistance;
+}
+
+void triggerMetronome()
+{
+    if (metronomRunning)
+    {
+        audioClick(soundIndex);
+        digitalWrite(LEDPin, HIGH);
+        timeStampLED = millis();
+        LEDDelay();
+    }
+    timeStampBPM = millis();
+}
+
+bool shouldPulseLED()
+{
+    return (millis() - LEDDelayStart > metronomeSettings.ledDelayTime) && LEDDelayActive;
+}
+
+bool shouldTurnOffLED()
+{
+    return millis() - timeStampLED > metronomeSettings.pulseWidth;
 }
