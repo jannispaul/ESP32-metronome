@@ -101,3 +101,44 @@ Lopaka Workflow inspired by: https://www.youtube.com/watch?v=Eyvzw_ujcS0
 > **Arduino IDE Setup**
 > Board: DOIT ESP32 Devkit V1 bis (Needs to be added manually. See issues below)
 > https://randomnerdtutorials.com/installing-esp32-arduino-ide-2-0/
+
+## TODOS
+
+### Tempo Accuracy
+
+Investigate discrepancy in BPM: Metronome set to 130 BPM actually runs at approximately 125 BPM.
+
+Verify timing logic and interval calculation for BPM accuracy.
+
+### Rotary Encoder
+
+Ensure consistent behavior in both rotation directions.
+
+Improve handling of clockwise rotation: currently only works reliably when turned quickly, and registers ~1 BPM every 3 clicks.
+
+Optimize encoder resolution and debounce handling.
+
+### Audio Playback
+
+Debug issue where audio stops playing above ~136–140 BPM, even though the LED timing remains correct.
+
+Confirm sample playback timing and buffer handling under high BPM conditions.
+
+Verified: sample length is not the cause.
+
+### Loop Function
+
+Analyze tasks within the main loop for potential timing interference with metronome precision.
+
+Maintain minimal and efficient loop execution to avoid timing delays.
+
+### Button (Encoder Click)
+
+After removing the Adafruit_SSD1306 display library, the encoder button input no longer works.
+
+Confirm hardware functionality: button works with multimeter and manual triggering.
+
+Investigate interaction between Button2 library and I2C/Wire-related changes.
+
+Tried adding Wire.begin() and adjusting delay/clock speed—no improvement so far.
+Maybe try differnet library: https://github.com/Stutchbury/EncoderButton
