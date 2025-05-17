@@ -8,7 +8,7 @@
 #include "Audio.h"
 #include "FS.h"
 #include "SPIFFS.h"
-#include "SoundFileLoader.h"
+#include "soundFileLoader.h"
 #include "bitmaps.h"
 #include "Config.h"
 
