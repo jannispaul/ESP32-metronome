@@ -12,264 +12,152 @@
 #include "bitmaps.h"
 #include "Config.h"
 
-// Create instances of configuration structures
+// === Config Structures ===
 MetronomeSettings metronomeSettings;
 TimingConfig timingConfig;
 
-// Hardware instances
+// === Hardware Interfaces ===
 ESP32Encoder encoder;
 Button2 button;
 Audio audio;
 
-// Display setup
+// === Display ===
 #define OLED_RESET LED_BUILTIN
 Adafruit_SSD1306 display(DisplayConfig::SCREEN_WIDTH, DisplayConfig::SCREEN_HEIGHT, &Wire, OLED_RESET);
 
-// Sound configuration
-int soundIndex = 0;
+// === Sound ===
 const char *soundFiles[MAX_SOUND_FILES];
 int soundFileCount;
+int soundIndex = 0;
 
+// === State Flags ===
 bool LEDDelayActive = false;
-
-// LED variables
-int LEDdelaytime = 100;
-int pulseWidth = 50;
-
-// Mode variable
-int mode = 0; // 0 = bpm, 1 = sound selection, 2 = volume
-
-// Metronome state
 bool metronomRunning = true;
+int mode = 0;
 
-// Functions declarations
-void pressed(Button2 &btn);
-void released(Button2 &btn);
-void changed(Button2 &btn);
+// Button handlers
 void click(Button2 &btn);
+void released(Button2 &btn);
 void longClickDetected(Button2 &btn);
 void longClick(Button2 &btn);
 void doubleClick(Button2 &btn);
 void tripleClick(Button2 &btn);
-void tap(Button2 &btn);
-void LEDDelay();
-void loop();
-void updateUI();
-void toggleMetronomeRunningState();
+
+// Core handlers
 void handleEncoder();
 void updateBPM();
+void updateVolume();
 void selectSound();
-bool shouldUpdateDisplay();
-void logDisplayInfo();
-void updateDisplayWithBPM();
+void updateMode();
+void updateUI();
+void handleMode();
+
+// Metronome logic
 bool shouldTriggerMetronome();
 void triggerMetronome();
 bool shouldPulseLED();
 void pulseLED();
 bool shouldTurnOffLED();
-void updateVolume();
-void updateMode();
+void LEDDelay();
+void audioClick(int soundIndex);
 
-void setup(void)
-{
+
+void setup() {
     u8g2.begin();
     Serial.begin(115200);
-    SPIFFS.begin();
-    // delay(6000); // waits for 6 seconds
-    Serial.println("Start");
 
-    // Print file names in filesystem to serial
-    if (!SPIFFS.begin(true))
-    {
-        Serial.println("An Error has occurred while mounting SPIFFS");
+    if (!SPIFFS.begin(true)) {
+        Serial.println("SPIFFS mount failed");
         return;
     }
 
     File root = SPIFFS.open("/");
-
-    File file = root.openNextFile();
-
-    while (file)
-    {
-        Serial.print("FILE: ");
-        Serial.println(file.name());
-        file = root.openNextFile();
+    while (File file = root.openNextFile()) {
+        Serial.print("FILE: "); Serial.println(file.name());
     }
-    // Load sound files
+
     soundFileCount = loadSoundFiles(soundFiles, MAX_SOUND_FILES);
     Serial.printf("%d sound files loaded.\n", soundFileCount);
 
-    // Enable the weak pull up resistors for encoder
-    // ESP32Encoder::useInternalWeakPullResistors = UP;
     ESP32Encoder::useInternalWeakPullResistors = puType::up;
     encoder.attachHalfQuad(PinConfig::DT, PinConfig::CLK);
 
     button.begin(PinConfig::BUTTON_PIN);
     button.setLongClickTime(1000);
-    // button.setDoubleClickTime(400);
-
-    Serial.println(" Longpress Time:\t" + String(button.getLongClickTime()) + "ms");
-    Serial.println(" DoubleClick Time:\t" + String(button.getDoubleClickTime()) + "ms");
-
-    // button.setChangedHandler(changed);
-    // button.setPressedHandler(pressed);
-    button.setReleasedHandler(released);
-
-    // button.setTapHandler(tap);
     button.setClickHandler(click);
+    button.setReleasedHandler(released);
     button.setLongClickDetectedHandler(longClickDetected);
     button.setLongClickHandler(longClick);
-    button.setLongClickDetectedRetriggerable(false);
-
     button.setDoubleClickHandler(doubleClick);
     button.setTripleClickHandler(tripleClick);
 
     pinMode(PinConfig::LED_PIN, OUTPUT);
     digitalWrite(PinConfig::LED_PIN, LOW);
-    // pinMode(potiPin, INPUT);
 
-    // Display failsafe
-    if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C))
-    { // Address 0x3D for 128x64
+    if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
         Serial.println(F("SSD1306 allocation failed"));
-        for (;;)
-            ; // Don't proceed, loop forever
+        while (true); // halt
     }
 
-    // Audio Setup
     audio.setPinout(PinConfig::I2S_BCLK, PinConfig::I2S_LRC, PinConfig::I2S_DOUT);
-    audio.setVolume(6); // default 0...21
-    //  or alternative
-
-    // About 50% volume
     audio.setVolume(metronomeSettings.volume);
 
-    // Set encoder to initial bpm
     encoder.setCount(metronomeSettings.bpm * 2);
 }
+void loop() {
+    handleMode();
+    button.loop();
 
-void handleMode()
-{
-    handleEncoder();
-    updateUI();
-    logDisplayInfo();
+    if (shouldTriggerMetronome()) triggerMetronome();
+    if (shouldPulseLED()) {
+        pulseLED();
+        LEDDelayActive = false;
+    }
+    if (shouldTurnOffLED()) digitalWrite(PinConfig::LED_PIN, LOW);
+
+    audio.loop();
 }
 
-void logDisplayInfo()
-{
-    Serial.println(timingConfig.displayTimestamp);
-    metronomeSettings.updateTriggerDistance();
-    Serial.println("triggerDistance: " + String(metronomeSettings.triggerDistance));
-    Serial.println("BPM: " + String(metronomeSettings.bpm));
-    Serial.println("mode: " + String(mode));
+bool shouldTriggerMetronome() {
+    return millis() - timingConfig.bpmTimestamp > metronomeSettings.triggerDistance;
 }
 
-void pulseLED()
-{
+void triggerMetronome() {
+    if (!metronomRunning) return;
+    audio.stopSong(); // stop any previous playbacks (optional)
+    delay(5);          // ensure I2S is released
+    audioClick(soundIndex);
+    pulseLED();
+    LEDDelay();
+    timingConfig.bpmTimestamp = millis();
+}
+
+void audioClick(int soundIndex) {
+    if (soundIndex >= 0 && soundIndex < soundFileCount) {
+        audio.connecttoFS(SPIFFS, soundFiles[soundIndex]);
+    }
+}
+void pulseLED() {
     timingConfig.ledTimestamp = millis();
     digitalWrite(PinConfig::LED_PIN, HIGH);
 }
 
-void audioClick(int soundIndex)
-{
-    if (soundIndex >= 0 && soundIndex < sizeof(soundFiles) / sizeof(soundFiles[0]))
-    {
-        audio.connecttoFS(SPIFFS, soundFiles[soundIndex]);
-    }
-    else
-    {
-        Serial.println("Invalid sound index!");
-    }
+bool shouldPulseLED() {
+    return LEDDelayActive && millis() - timingConfig.LEDDelayStart > metronomeSettings.ledDelayTime;
 }
 
-void pressed(Button2 &btn)
-{
-    // Log the button press event
-    Serial.println("Button pressed");
+bool shouldTurnOffLED() {
+    return millis() - timingConfig.ledTimestamp > metronomeSettings.pulseWidth;
 }
 
-void released(Button2 &btn)
-{
-    // Log the button release event and the duration it was pressed
-    Serial.print("Button released after: ");
-    Serial.println(btn.wasPressedFor());
-}
-
-void changed(Button2 &btn)
-{
-    Serial.println("changed");
-}
-
-void click(Button2 &btn)
-{
-    // Log the button click event
-    Serial.println("Button clicked");
-
-    updateMode();
-}
-// change mode function
-void updateMode()
-{
-
-    // Go through modes 0 = bpm, 1 = sound, 2 = volume
-    mode = (mode + 1) % 3;
-    // Set encoder to last value of the mode
-    if (mode == 0)
-    {
-        encoder.setCount(metronomeSettings.bpm * 2);
-        Serial.println("updateMode: bpm: " + String(metronomeSettings.bpm));
-    }
-    else if (mode == 1)
-    {
-        encoder.setCount(soundIndex * 2);
-        Serial.println("updateMode: sound: " + String(soundIndex));
-    }
-    else if (mode == 2)
-    {
-        uint8_t volume = audio.getVolume();
-        encoder.setCount(volume * metronomeSettings.volumeFactor * 2);
-        Serial.println("updateMode: volume: " + String(volume));
-    }
-}
-
-void longClickDetected(Button2 &btn)
-{
-    Serial.println("Long click detected");
-
-    // Toggle the metronome running state
-    toggleMetronomeRunningState();
-}
-
-void toggleMetronomeRunningState()
-{
-    metronomRunning = !metronomRunning;
-}
-
-void longClick(Button2 &btn)
-{
-    Serial.println("long click\n");
-}
-
-void doubleClick(Button2 &btn)
-{
-    Serial.println("double click\n");
-}
-
-void tripleClick(Button2 &btn)
-{
-    Serial.println("triple click\n");
-    Serial.println(btn.getNumberOfClicks());
-}
-
-void tap(Button2 &btn)
-{
-    Serial.println("tap");
-}
-
-void LEDDelay()
-{
+void LEDDelay() {
     timingConfig.LEDDelayStart = millis();
     LEDDelayActive = true;
+}
+
+void handleMode() {
+    handleEncoder();
+    updateUI();
 }
 
 void updateUI()
@@ -318,122 +206,46 @@ void updateUI()
     // Update the display
     u8g2.sendBuffer();
 }
-
-void handleEncoder()
-{
-    if (mode == 0)
-    {
-        updateBPM();
-    }
-    else if (mode == 1)
-    {
-        selectSound();
-    }
-    else if (mode == 2)
-    {
-        updateVolume();
+void handleEncoder() {
+    switch (mode) {
+        case 0: updateBPM(); break;
+        case 1: selectSound(); break;
+        case 2: updateVolume(); break;
     }
 }
 
-void updateVolume()
-{
-
-    int encoderValue = encoder.getCount() / 2;
-
-    Serial.println("Volume encoderValue: " + String(encoderValue));
-    // Constrain volume between 0 and 100
-    if (encoderValue > 100)
-    {
-        encoder.setCount(100 * 2);
-    }
-    else if (encoderValue < 0)
-    {
-        encoder.setCount(0);
-    }
-    // Translate encoder value to volume (0-21) with linear speed adjustment
-    audio.setVolume(std::round(encoderValue * 21 / 100));
+void updateBPM() {
+    int bpm = encoder.getCount() / 2;
+    bpm = constrain(bpm, metronomeSettings.bpmMin, metronomeSettings.bpmMax);
+    encoder.setCount(bpm * 2);
+    metronomeSettings.bpm = bpm;
+    metronomeSettings.updateTriggerDistance();
 }
 
-void updateBPM()
-{
-
-    int encoderValue = encoder.getCount() / 2;
-    Serial.println("BPM encoderValue: " + String(encoderValue));
-
-    // Make sure the encoder value is within the valid range
-    if (encoderValue > metronomeSettings.bpmMax)
-    {
-        encoder.setCount(metronomeSettings.bpmMax * 2);
-    }
-    else if (encoderValue < metronomeSettings.bpmMin)
-    {
-        encoder.setCount(metronomeSettings.bpmMin * 2);
-    }
-
-    metronomeSettings.bpm = encoderValue;
+void selectSound() {
+    int index = encoder.getCount() / 2;
+    if (index < 0) index = soundFileCount - 1;
+    soundIndex = index % soundFileCount;
 }
 
-void selectSound()
-{
-    // prevent when encode becomes negative start from the end
-    if (encoder.getCount() < 0)
-    {
-        soundIndex = soundFileCount - 1;
-    }
-    else
-    {
-        soundIndex = (encoder.getCount() / 2) % soundFileCount;
-    }
+void updateVolume() {
+    int vol = constrain(encoder.getCount() / 2, 0, 100);
+    encoder.setCount(vol * 2);
+    audio.setVolume(std::round(vol * 21 / 100));
 }
 
-void loop()
-{
+void click(Button2 &btn) { updateMode(); }
 
-    handleMode();
-    button.loop();
-
-    if (shouldTriggerMetronome())
-    {
-        triggerMetronome();
+void updateMode() {
+    mode = (mode + 1) % 3;
+    switch (mode) {
+        case 0: encoder.setCount(metronomeSettings.bpm * 2); break;
+        case 1: encoder.setCount(soundIndex * 2); break;
+        case 2: encoder.setCount(audio.getVolume() * 100 / 21 * 2); break;
     }
-
-    if (shouldPulseLED())
-    {
-        pulseLED();
-        LEDDelayActive = false;
-    }
-
-    if (shouldTurnOffLED())
-    {
-        digitalWrite(PinConfig::LED_PIN, LOW);
-    }
-
-    audio.loop();
 }
-
-bool shouldTriggerMetronome()
-{
-    return millis() - timingConfig.bpmTimestamp > metronomeSettings.triggerDistance;
-}
-
-void triggerMetronome()
-{
-    if (metronomRunning)
-    {
-        audioClick(soundIndex);
-        digitalWrite(PinConfig::LED_PIN, HIGH);
-        timingConfig.ledTimestamp = millis();
-        LEDDelay();
-    }
-    timingConfig.bpmTimestamp = millis();
-}
-
-bool shouldPulseLED()
-{
-    return (millis() - timingConfig.LEDDelayStart > metronomeSettings.ledDelayTime) && LEDDelayActive;
-}
-
-bool shouldTurnOffLED()
-{
-    return millis() - timingConfig.ledTimestamp > metronomeSettings.pulseWidth;
-}
+void released(Button2 &btn) { Serial.println("Button released"); }
+void longClickDetected(Button2 &btn) { metronomRunning = !metronomRunning; }
+void longClick(Button2 &btn) { Serial.println("Long click"); }
+void doubleClick(Button2 &btn) { Serial.println("Double click"); }
+void tripleClick(Button2 &btn) { Serial.println("Triple click"); }
