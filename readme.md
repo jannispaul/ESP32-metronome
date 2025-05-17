@@ -39,7 +39,9 @@ The project uses the following libraries. A list of the dependencies can also be
 - only use 16bit, 10kHz is ok
 - 500Hz Fullscale Wav max. audio.setVolume(7), better 6
 
-## File system
+## File system & Upload WAV files
+
+PlatformIO: -> Project Tasts -> esp32doit-devkit-v1 -> Plaform -> Build Filesystem & Upload Filessystem
 
 > ### Deprecated implementation:
 >
@@ -47,16 +49,12 @@ The project uses the following libraries. A list of the dependencies can also be
 > - install LittleFS:
 > - https://randomnerdtutorials.com/esp32-littlefs-arduino-ide/
 > - https://randomnerdtutorials.com/install-esp32-filesystem-uploader-arduino-ide/#macos-installing
-
-### Upload WAV files
-
-PlatformIO: -> Project Tasts -> esp32doit-devkit-v1 -> Plaform -> Build Filesystem & Upload Filessystem
-
-## Deprecated
-
-Based on this Tutorial hochladen: https://randomnerdtutorials.com/arduino-ide-2-install-esp32-littlefs/
-Arduino IDE --> Tools --> ESP32 Sketch Data Upload --> SPIFFS
-Log files stored in filessystem: https://techtutorialsx.com/2019/02/23/esp32-arduino-list-all-files-in-the-spiffs-file-system/
+>
+> ### Updload wave files
+>
+> Based on this Tutorial hochladen: https://randomnerdtutorials.com/arduino-ide-2-install-esp32-littlefs/
+> Arduino IDE --> Tools --> ESP32 Sketch Data Upload --> SPIFFS
+> Log files stored in filessystem: https://techtutorialsx.com/2019/02/23/esp32-arduino-list-all-files-in-the-spiffs-file-system/
 
 ## Hardware
 
