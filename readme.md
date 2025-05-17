@@ -50,6 +50,10 @@ The project uses the following libraries. A list of the dependencies can also be
 
 ### Upload WAV files
 
+PlatformIO: -> Project Tasts -> esp32doit-devkit-v1 -> Plaform -> Build Filesystem & Upload Filessystem
+
+## Deprecated
+
 Based on this Tutorial hochladen: https://randomnerdtutorials.com/arduino-ide-2-install-esp32-littlefs/
 Arduino IDE --> Tools --> ESP32 Sketch Data Upload --> SPIFFS
 Log files stored in filessystem: https://techtutorialsx.com/2019/02/23/esp32-arduino-list-all-files-in-the-spiffs-file-system/
