@@ -3,7 +3,7 @@
 #include "Button2.h"
 #include <Wire.h>
 #include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
+// #include <Adafruit_SSD1306.h>
 #include <U8g2lib.h>
 #include "Audio.h"
 #include "FS.h"
@@ -22,8 +22,8 @@ Button2 button;
 Audio audio;
 
 // === Display ===
-#define OLED_RESET LED_BUILTIN
-Adafruit_SSD1306 display(DisplayConfig::SCREEN_WIDTH, DisplayConfig::SCREEN_HEIGHT, &Wire, OLED_RESET);
+// #define OLED_RESET LED_BUILTIN
+// Adafruit_SSD1306 display(DisplayConfig::SCREEN_WIDTH, DisplayConfig::SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 // === Sound ===
 const char *soundFiles[MAX_SOUND_FILES];
@@ -63,6 +63,8 @@ void audioClick(int soundIndex);
 
 
 void setup() {
+    Wire.begin(); // Ensure I2C is initialized
+    // Wire.setClock(400000); // I2C click speed according to AI might help communincation with button
     u8g2.begin();
     Serial.begin(115200);
 
@@ -93,11 +95,12 @@ void setup() {
 
     pinMode(PinConfig::LED_PIN, OUTPUT);
     digitalWrite(PinConfig::LED_PIN, LOW);
+    
 
-    if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-        Serial.println(F("SSD1306 allocation failed"));
-        while (true); // halt
-    }
+    // if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    //     Serial.println(F("SSD1306 allocation failed"));
+    //     while (true); // halt
+    // }
 
     audio.setPinout(PinConfig::I2S_BCLK, PinConfig::I2S_LRC, PinConfig::I2S_DOUT);
     audio.setVolume(metronomeSettings.volume);
@@ -123,9 +126,10 @@ bool shouldTriggerMetronome() {
 }
 
 void triggerMetronome() {
-    if (!metronomRunning) return;
-    audio.stopSong(); // stop any previous playbacks (optional)
-    delay(5);          // ensure I2S is released
+    Serial.println("Metronome Triggered");
+    // if (!metronomRunning) return;
+    // audio.stopSong(); // stop any previous playbacks (optional)
+    // delay(5);          // ensure I2S is released
     audioClick(soundIndex);
     pulseLED();
     LEDDelay();
@@ -160,8 +164,7 @@ void handleMode() {
     updateUI();
 }
 
-void updateUI()
-{
+void updateUI() {
     // Setup display
     u8g2.clearBuffer();
     u8g2.setFontMode(1);
@@ -207,6 +210,7 @@ void updateUI()
     u8g2.sendBuffer();
 }
 void handleEncoder() {
+    Serial.print("Mode: "); Serial.println(mode);
     switch (mode) {
         case 0: updateBPM(); break;
         case 1: selectSound(); break;
@@ -219,7 +223,7 @@ void updateBPM() {
     bpm = constrain(bpm, metronomeSettings.bpmMin, metronomeSettings.bpmMax);
     encoder.setCount(bpm * 2);
     metronomeSettings.bpm = bpm;
-    metronomeSettings.updateTriggerDistance();
+    metronomeSettings.updateBeatInterval();
 }
 
 void selectSound() {
@@ -234,7 +238,10 @@ void updateVolume() {
     audio.setVolume(std::round(vol * 21 / 100));
 }
 
-void click(Button2 &btn) { updateMode(); }
+void click(Button2 &btn) { 
+    Serial.println("Button clicked"); 
+    updateMode(); 
+}
 
 void updateMode() {
     mode = (mode + 1) % 3;

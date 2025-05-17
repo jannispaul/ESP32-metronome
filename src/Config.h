@@ -43,17 +43,18 @@ struct MetronomeSettings
                           bpmMin(30),
                           lastBpm(0),
                           pulseWidth(50),
-                          ledDelayTime(100),
+                          ledDelayTime(50),
                           isRunning(true),
                           mode(0),
                           triggerDistance(0)
     {
     }
 
-    void updateTriggerDistance()
+    void updateBeatInterval()
     {
         // Calculate trigger distance in milliseconds
-        float temp = (1.0f / (bpm / 60.0f)) * 1000.0f;
+        // float temp = (1.0f / (bpm / 60.0f)) * 1000.0f;
+        float temp = 60000UL / bpm;
         triggerDistance = round(temp);
     }
 };

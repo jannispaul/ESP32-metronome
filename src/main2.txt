@@ -1,0 +1,159 @@
+#include <Arduino.h>
+#include <Wire.h>
+#include <SPIFFS.h>
+#include <Adafruit_SSD1306.h>
+#include <ESP32Encoder.h>
+
+#include <AudioGeneratorWAV.h>
+#include <AudioFileSourceSPIFFS.h>
+#include <AudioOutputI2S.h>
+
+// OLED config
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET    -1
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+// Encoder pins - change to your wiring
+#define ENCODER_A  15
+#define ENCODER_B  13
+
+ESP32Encoder encoder;
+
+// Audio objects
+AudioGeneratorWAV *wav = nullptr;
+AudioFileSourceSPIFFS *file = nullptr;
+AudioOutputI2S *out = nullptr;
+
+// Metronome variables
+int bpm = 120;       // initial BPM
+const int bpmMin = 40;
+const int bpmMax = 240;
+
+unsigned long lastBeatMillis = 0;
+unsigned long beatInterval = 0;
+
+// Function prototypes
+void updateBeatInterval();
+void displayBPM();
+void playBeat();
+
+void setup() {
+  Serial.begin(115200);
+
+  // Init SPIFFS
+  if (!SPIFFS.begin(true)) {
+    Serial.println("SPIFFS mount failed!");
+    while (1);
+  }
+
+  // Init OLED
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println("SSD1306 allocation failed");
+    while (1);
+  }
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(2);
+  display.setCursor(0, 0);
+  display.print("Metronome");
+  display.display();
+
+  // Setup encoder pins with pull-ups manually
+  pinMode(ENCODER_A, INPUT_PULLUP);
+  pinMode(ENCODER_B, INPUT_PULLUP);
+
+  // Attach encoder (single edge)
+  encoder.attachHalfQuad(ENCODER_A, ENCODER_B);
+  encoder.setCount(bpm);  // start position
+
+  // Initialize audio output
+  out = new AudioOutputI2S();
+  out->begin();
+
+  updateBeatInterval();
+
+  delay(1000);
+  display.clearDisplay();
+  displayBPM();
+}
+
+void loop() {
+  // Read encoder value
+  int newBpm = encoder.getCount();
+
+  // Clamp bpm and update if changed
+  if (newBpm < bpmMin) {
+    newBpm = bpmMin;
+    encoder.setCount(newBpm);
+  }
+  else if (newBpm > bpmMax) {
+    newBpm = bpmMax;
+    encoder.setCount(newBpm);
+  }
+
+  if (newBpm != bpm) {
+    bpm = newBpm;
+    updateBeatInterval();
+    displayBPM();
+  }
+
+  // Check if time for next beat
+  unsigned long currentMillis = millis();
+  if (currentMillis - lastBeatMillis >= beatInterval) {
+    lastBeatMillis = currentMillis;
+    playBeat();
+  }
+
+  // Keep audio playing
+  if (wav) {
+    if (!wav->loop()) {
+      // WAV finished playing
+      delete wav;
+      wav = nullptr;
+
+      if (file) {
+        delete file;
+        file = nullptr;
+      }
+    }
+  }
+}
+
+// Update beat interval based on current BPM
+void updateBeatInterval() {
+  beatInterval = 60000UL / bpm; // ms per beat
+}
+
+// Display BPM on OLED
+void displayBPM() {
+  display.clearDisplay();
+  display.setTextSize(3);
+  display.setCursor(0, 20);
+  display.print(bpm);
+  display.setTextSize(1);
+  display.setCursor(0, 58);
+  display.print("BPM");
+  display.display();
+}
+
+// Play beat sound from SPIFFS
+void playBeat() {
+  if (wav) {
+    delete wav;
+    wav = nullptr;
+  }
+  if (file) {
+    delete file;
+    file = nullptr;
+  }
+
+  file = new AudioFileSourceSPIFFS("/sound3.wav");
+  if (!file->isOpen()) {
+    Serial.println("Failed to open /sound1.wav");
+  }
+  Serial.println("Playing /sound1.wav");
+
+  wav = new AudioGeneratorWAV();
+  wav->begin(file, out);
+}
