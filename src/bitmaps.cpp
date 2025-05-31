@@ -1,7 +1,16 @@
 #include "bitmaps.h"
+#include "config.h"
 
 // U8G2 Constructor for ESP32
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE);
+
+
+
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(
+    U8G2_R0,
+    /* clock=*/PinConfig::I2C_SCL,
+    /* data=*/PinConfig::I2C_SDA,
+    /* reset=*/U8X8_PIN_NONE
+);
 
 
 // Bitmap arrays

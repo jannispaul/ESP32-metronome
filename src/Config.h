@@ -6,13 +6,17 @@
 // Pin Definitions
 namespace PinConfig
 {
-    static const int CLK = 13; // CLK ENCODER
-    static const int DT = 15;  // DT ENCODER
-    static const int BUTTON_PIN = 2;
-    static const int LED_PIN = 32;
+    static const int CLK = 17; // CLK ENCODER
+    static const int DT = 16;  // DT ENCODER
+    static const int BUTTON_PIN = 4;
+    static const int LED_PIN = 2;
     static const int I2S_DOUT = 25;
     static const int I2S_BCLK = 26;
     static const int I2S_LRC = 27;
+
+        // New: I2C Pins for OLED Display, just temporarily because of defect ESP32
+    static const int I2C_SDA = 21;
+    static const int I2C_SCL = 23;
 }
 
 // Display Configuration

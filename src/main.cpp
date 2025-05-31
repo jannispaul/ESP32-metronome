@@ -63,7 +63,7 @@ void audioClick(int soundIndex);
 
 
 void setup() {
-    Wire.begin(); // Ensure I2C is initialized
+    Wire.begin(PinConfig::I2C_SDA, PinConfig::I2C_SCL); // Ensure I2C is initialized
     // Wire.setClock(400000); // I2C click speed according to AI might help communincation with button
     u8g2.begin();
     Serial.begin(115200);
