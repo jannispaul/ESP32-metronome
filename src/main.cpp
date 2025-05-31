@@ -31,7 +31,7 @@ int soundFileCount;
 int soundIndex = 0;
 
 // === State Flags ===
-bool LEDDelayActive = false;
+bool LEDDelayActive = true;
 bool metronomRunning = true;
 int mode = 0;
 
@@ -53,11 +53,11 @@ void updateUI();
 void handleMode();
 
 // Metronome logic
-bool shouldTriggerMetronome();
-void triggerMetronome();
+bool shouldTriggerMetronome(unsigned long now);
+void triggerMetronome(unsigned long now);
+bool shouldTurnOffLED(unsigned long now);
 bool shouldPulseLED();
-void pulseLED();
-bool shouldTurnOffLED();
+void pulseLED(unsigned long now);
 void LEDDelay();
 void audioClick(int soundIndex);
 
@@ -106,34 +106,46 @@ void setup() {
     audio.setVolume(metronomeSettings.volume);
 
     encoder.setCount(metronomeSettings.bpm * 2);
+
+    // Ensure first pulse happens immediately
+    unsigned long now = millis();
+    timingConfig.bpmTimestamp = millis(); // only start setpoint but no trigger 
+    metronomeSettings.updateBeatInterval();
+
+
 }
 void loop() {
-    handleMode();
+    unsigned long now = millis();
+    handleMode();  // handle encoder input and update UI if needed
     button.loop();
 
-    if (shouldTriggerMetronome()) triggerMetronome();
-    if (shouldPulseLED()) {
-        pulseLED();
-        LEDDelayActive = false;
+    // Trigger metronome if enough time has passed since last trigger
+    if (shouldTriggerMetronome(now)) {
+        triggerMetronome(now);
     }
-    if (shouldTurnOffLED()) digitalWrite(PinConfig::LED_PIN, LOW);
 
-    audio.loop();
+    // Turn off LED if pulse duration elapsed
+    if (digitalRead(PinConfig::LED_PIN) == HIGH) {
+        unsigned long diff = now - timingConfig.ledTimestamp;
+        
+        if (shouldTurnOffLED(now)) {
+            digitalWrite(PinConfig::LED_PIN, LOW);
+            Serial.println("LED OFF");
+            Serial.printf("LED was ON for %lu ms\n", diff);
+        }
+    }
+
+    // audio.loop();  // temporarily disabled
 }
 
-bool shouldTriggerMetronome() {
-    return millis() - timingConfig.bpmTimestamp > metronomeSettings.triggerDistance;
+bool shouldTriggerMetronome(unsigned long now) {
+    return (now - timingConfig.bpmTimestamp) >= metronomeSettings.triggerDistance;
 }
 
-void triggerMetronome() {
+void triggerMetronome(unsigned long now) {
     Serial.println("Metronome Triggered");
-    // if (!metronomRunning) return;
-    // audio.stopSong(); // stop any previous playbacks (optional)
-    // delay(5);          // ensure I2S is released
-    audioClick(soundIndex);
-    pulseLED();
-    LEDDelay();
-    timingConfig.bpmTimestamp = millis();
+    pulseLED(now);
+    timingConfig.bpmTimestamp = now;
 }
 
 void audioClick(int soundIndex) {
@@ -141,17 +153,20 @@ void audioClick(int soundIndex) {
         audio.connecttoFS(SPIFFS, soundFiles[soundIndex]);
     }
 }
-void pulseLED() {
-    timingConfig.ledTimestamp = millis();
+void pulseLED(unsigned long now) {
+    unsigned long diff = now - timingConfig.ledTimestamp;
+    timingConfig.ledTimestamp = now;
     digitalWrite(PinConfig::LED_PIN, HIGH);
+    Serial.printf("LED ON (delta since last HIGH: %lu ms)\n", diff);
+    Serial.printf("pulseWidth: %d ms\n", metronomeSettings.pulseWidth);
 }
 
 bool shouldPulseLED() {
     return LEDDelayActive && millis() - timingConfig.LEDDelayStart > metronomeSettings.ledDelayTime;
 }
 
-bool shouldTurnOffLED() {
-    return millis() - timingConfig.ledTimestamp > metronomeSettings.pulseWidth;
+bool shouldTurnOffLED(unsigned long now) {
+    return now - timingConfig.ledTimestamp > metronomeSettings.pulseWidth;
 }
 
 void LEDDelay() {
@@ -159,10 +174,21 @@ void LEDDelay() {
     LEDDelayActive = true;
 }
 
+void maybeUpdateUI() {
+    unsigned long now = millis();
+    if (now - timingConfig.displayTimestamp > 200) {  // slower for better pulse performance
+        updateUI();
+        timingConfig.displayTimestamp = now;
+    }
+}
+
 void handleMode() {
     handleEncoder();
-    updateUI();
+    maybeUpdateUI();  // instead of cirectly updateUI()
 }
+
+
+
 
 void updateUI() {
     // Setup display
@@ -209,8 +235,15 @@ void updateUI() {
     // Update the display
     u8g2.sendBuffer();
 }
+
+static int lastMode = -1;
+
 void handleEncoder() {
-    Serial.print("Mode: "); Serial.println(mode);
+    if (mode != lastMode) {
+        Serial.print("Mode: "); Serial.println(mode);
+        lastMode = mode;
+    }
+
     switch (mode) {
         case 0: updateBPM(); break;
         case 1: selectSound(); break;
@@ -218,13 +251,20 @@ void handleEncoder() {
     }
 }
 
+
 void updateBPM() {
     int bpm = encoder.getCount() / 2;
     bpm = constrain(bpm, metronomeSettings.bpmMin, metronomeSettings.bpmMax);
-    encoder.setCount(bpm * 2);
-    metronomeSettings.bpm = bpm;
-    metronomeSettings.updateBeatInterval();
+
+    if (bpm != metronomeSettings.bpm) {
+        metronomeSettings.bpm = bpm;
+        encoder.setCount(bpm * 2);  // um eventuelle Überschwingung zu korrigieren
+        metronomeSettings.updateBeatInterval();
+        Serial.print("bpm changed to: ");
+        Serial.println(bpm);
+    }
 }
+
 
 void selectSound() {
     int index = encoder.getCount() / 2;
