@@ -110,6 +110,8 @@ Investigate discrepancy in BPM: Metronome set to 130 BPM actually runs at approx
 
 Verify timing logic and interval calculation for BPM accuracy.
 
+- [x] Update 20250603: fixed
+
 ### Rotary Encoder
 
 Ensure consistent behavior in both rotation directions.
@@ -142,3 +144,5 @@ Investigate interaction between Button2 library and I2C/Wire-related changes.
 
 Tried adding Wire.begin() and adjusting delay/clock speed—no improvement so far.
 Maybe try differnet library: https://github.com/Stutchbury/EncoderButton
+
+- [x] Update 20250603: fixed

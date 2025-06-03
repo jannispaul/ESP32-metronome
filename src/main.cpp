@@ -2,7 +2,7 @@
 #include <ESP32Encoder.h>
 #include "Button2.h"
 #include <Wire.h>
-#include <Adafruit_GFX.h>
+//#include <Adafruit_GFX.h>
 // #include <Adafruit_SSD1306.h>
 #include <U8g2lib.h>
 #include "Audio.h"
