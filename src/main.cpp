@@ -82,7 +82,7 @@ void setup() {
     Serial.printf("%d sound files loaded.\n", soundFileCount);
 
     ESP32Encoder::useInternalWeakPullResistors = puType::up;
-    encoder.attachHalfQuad(PinConfig::DT, PinConfig::CLK);
+    encoder.attachFullQuad(PinConfig::DT, PinConfig::CLK);
 
     button.begin(PinConfig::BUTTON_PIN);
     button.setLongClickTime(1000);
@@ -105,7 +105,7 @@ void setup() {
     audio.setPinout(PinConfig::I2S_BCLK, PinConfig::I2S_LRC, PinConfig::I2S_DOUT);
     audio.setVolume(metronomeSettings.volume);
 
-    encoder.setCount(metronomeSettings.bpm * 2);
+    encoder.setCount(metronomeSettings.bpm * 4);
 
     // Ensure first pulse happens immediately
     unsigned long now = millis();
@@ -135,7 +135,7 @@ void loop() {
         }
     }
 
-    // audio.loop();  // temporarily disabled
+     audio.loop();  
 }
 
 bool shouldTriggerMetronome(unsigned long now) {
@@ -145,6 +145,7 @@ bool shouldTriggerMetronome(unsigned long now) {
 void triggerMetronome(unsigned long now) {
     Serial.println("Metronome Triggered");
     pulseLED(now);
+    audioClick(soundIndex);
     timingConfig.bpmTimestamp = now;
 }
 
@@ -237,6 +238,8 @@ void updateUI() {
 }
 
 static int lastMode = -1;
+static int lastEncoderValue = 0;
+
 
 void handleEncoder() {
     if (mode != lastMode) {
@@ -253,30 +256,52 @@ void handleEncoder() {
 
 
 void updateBPM() {
-    int bpm = encoder.getCount() / 2;
-    bpm = constrain(bpm, metronomeSettings.bpmMin, metronomeSettings.bpmMax);
-
-    if (bpm != metronomeSettings.bpm) {
-        metronomeSettings.bpm = bpm;
-        encoder.setCount(bpm * 2);  // um eventuelle Überschwingung zu korrigieren
-        metronomeSettings.updateBeatInterval();
-        Serial.print("bpm changed to: ");
-        Serial.println(bpm);
+    int value = encoder.getCount() / 4;
+    if (value != lastEncoderValue) {
+        int bpm = constrain(value, metronomeSettings.bpmMin, metronomeSettings.bpmMax);
+        if (bpm != metronomeSettings.bpm) {
+            metronomeSettings.bpm = bpm;
+            encoder.setCount(bpm * 4);
+            metronomeSettings.updateBeatInterval();
+            Serial.print("bpm changed to: ");
+            Serial.println(bpm);
+        }
+        lastEncoderValue = value;
     }
 }
 
 
+
 void selectSound() {
-    int index = encoder.getCount() / 2;
-    if (index < 0) index = soundFileCount - 1;
-    soundIndex = index % soundFileCount;
+    int value = encoder.getCount() / 4;
+    if (value != lastEncoderValue) {
+        int index = (value % soundFileCount + soundFileCount) % soundFileCount;
+        if (index != soundIndex) {
+            soundIndex = index;
+            encoder.setCount(index * 4);
+            Serial.print("Sound index: ");
+            Serial.println(soundIndex);
+        }
+        lastEncoderValue = value;
+    }
 }
 
+
 void updateVolume() {
-    int vol = constrain(encoder.getCount() / 2, 0, 100);
-    encoder.setCount(vol * 2);
-    audio.setVolume(std::round(vol * 21 / 100));
+    int value = encoder.getCount() / 4;
+    if (value != lastEncoderValue) {
+        int vol = constrain(value, 0, 100);
+        int newVolume = round(vol * 21 / 100);
+        if (newVolume != audio.getVolume()) {
+            audio.setVolume(newVolume);
+            encoder.setCount(vol * 4);
+            Serial.print("Volume: ");
+            Serial.println(vol);
+        }
+        lastEncoderValue = value;
+    }
 }
+
 
 void click(Button2 &btn) { 
     Serial.println("Button clicked"); 
@@ -286,11 +311,21 @@ void click(Button2 &btn) {
 void updateMode() {
     mode = (mode + 1) % 3;
     switch (mode) {
-        case 0: encoder.setCount(metronomeSettings.bpm * 2); break;
-        case 1: encoder.setCount(soundIndex * 2); break;
-        case 2: encoder.setCount(audio.getVolume() * 100 / 21 * 2); break;
+        case 0:
+            encoder.setCount(metronomeSettings.bpm * 4);
+            lastEncoderValue = metronomeSettings.bpm;
+            break;
+        case 1:
+            encoder.setCount(soundIndex * 4);
+            lastEncoderValue = soundIndex;
+            break;
+        case 2:
+            encoder.setCount((audio.getVolume() * 100 / 21) * 4);
+            lastEncoderValue = audio.getVolume() * 100 / 21;
+            break;
     }
 }
+
 void released(Button2 &btn) { Serial.println("Button released"); }
 void longClickDetected(Button2 &btn) { metronomRunning = !metronomRunning; }
 void longClick(Button2 &btn) { Serial.println("Long click"); }

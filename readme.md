@@ -110,7 +110,12 @@ Investigate discrepancy in BPM: Metronome set to 130 BPM actually runs at approx
 
 Verify timing logic and interval calculation for BPM accuracy.
 
-- [x] Update 20250603: fixed
+- [ ] Update 20250603: fixed when audio is not used, still open with audio,  added serialprints for debugging. 
+
+### LED pulsewidth
+Not always as set
+- [ ] Update 20250603: fixed when audio is not used, still open with audio, added serialprints for debugging. 
+
 
 ### Rotary Encoder
 
@@ -120,6 +125,8 @@ Improve handling of clockwise rotation: currently only works reliably when turne
 
 Optimize encoder resolution and debounce handling.
 
+- [ ] test in external program
+
 ### Audio Playback
 
 Debug issue where audio stops playing above ~136–140 BPM, even though the LED timing remains correct.
@@ -127,6 +134,7 @@ Debug issue where audio stops playing above ~136–140 BPM, even though the LED 
 Confirm sample playback timing and buffer handling under high BPM conditions.
 
 Verified: sample length is not the cause.
+- [ ] Probably because .wav is loaded from FS --> load in RAM
 
 ### Loop Function
 
