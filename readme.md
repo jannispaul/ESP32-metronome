@@ -125,7 +125,8 @@ Improve handling of clockwise rotation: currently only works reliably when turne
 
 Optimize encoder resolution and debounce handling.
 
-- [ ] test in external program
+- [x] test in external program
+- add 200nF between line and GND
 
 ### Audio Playback
 

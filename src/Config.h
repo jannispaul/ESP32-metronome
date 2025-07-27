@@ -16,7 +16,7 @@ namespace PinConfig
 
         // New: I2C Pins for OLED Display, just temporarily because of defect ESP32
     static const int I2C_SDA = 21;
-    static const int I2C_SCL = 23;
+    static const int I2C_SCL = 22;
 }
 
 // Display Configuration
@@ -26,6 +26,7 @@ namespace DisplayConfig
     static const int SCREEN_HEIGHT = 64;
     static const int REFRESH_RATE = 500; // ms
 }
+
 
 // Metronome Settings
 struct MetronomeSettings

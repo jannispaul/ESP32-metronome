@@ -35,6 +35,13 @@ bool LEDDelayActive = true;
 bool metronomRunning = true;
 int mode = 0;
 
+int lastMode = -1;
+int lastEncoderValue = 0;
+int lastEncoderRawCount = 0;
+
+int volumePercent = 50; // start at 50%
+
+
 // Button handlers
 void click(Button2 &btn);
 void released(Button2 &btn);
@@ -63,9 +70,8 @@ void audioClick(int soundIndex);
 
 
 void setup() {
-    Wire.begin(PinConfig::I2C_SDA, PinConfig::I2C_SCL); // Ensure I2C is initialized
-    // Wire.setClock(400000); // I2C click speed according to AI might help communincation with button
-    u8g2.begin();
+    Wire.begin(PinConfig::I2C_SDA, PinConfig::I2C_SCL); // Initialize I2C
+    u8g2.begin(); // Initialize OLED
     Serial.begin(115200);
 
     if (!SPIFFS.begin(true)) {
@@ -83,6 +89,7 @@ void setup() {
 
     ESP32Encoder::useInternalWeakPullResistors = puType::up;
     encoder.attachFullQuad(PinConfig::DT, PinConfig::CLK);
+    encoder.setFilter(256);
 
     button.begin(PinConfig::BUTTON_PIN);
     button.setLongClickTime(1000);
@@ -95,25 +102,37 @@ void setup() {
 
     pinMode(PinConfig::LED_PIN, OUTPUT);
     digitalWrite(PinConfig::LED_PIN, LOW);
-    
 
-    // if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-    //     Serial.println(F("SSD1306 allocation failed"));
-    //     while (true); // halt
-    // }
-
+    // Audio setup
     audio.setPinout(PinConfig::I2S_BCLK, PinConfig::I2S_LRC, PinConfig::I2S_DOUT);
-    audio.setVolume(metronomeSettings.volume);
+    audio.setVolume(metronomeSettings.volume); // Set initial volume (10 of 21 = ~50%)
 
+    // Sync encoder to BPM (default mode 0)
     encoder.setCount(metronomeSettings.bpm * 4);
+    lastEncoderRawCount = encoder.getCount();
 
-    // Ensure first pulse happens immediately
-    unsigned long now = millis();
-    timingConfig.bpmTimestamp = millis(); // only start setpoint but no trigger 
+    // Calculate initial beat interval based on BPM
     metronomeSettings.updateBeatInterval();
 
 
+    // Initialize volume percent for display
+    volumePercent = round(metronomeSettings.volume * 100.0 / 21.0);
+
+    // Initial debug output
+    Serial.print("Initial BPM: ");
+    Serial.println(metronomeSettings.bpm);
+
+    Serial.print("Initial volume: ");
+    Serial.print(audio.getVolume());
+    Serial.println(" of 21");
+
+    Serial.print("volumePercent: ");
+    Serial.println(volumePercent);
+
+    Serial.print("encoder count: ");
+    Serial.println(encoder.getCount());
 }
+
 void loop() {
     unsigned long now = millis();
     handleMode();  // handle encoder input and update UI if needed
@@ -185,7 +204,7 @@ void maybeUpdateUI() {
 
 void handleMode() {
     handleEncoder();
-    maybeUpdateUI();  // instead of cirectly updateUI()
+    maybeUpdateUI();  // instead of directly updateUI()
 }
 
 
@@ -219,7 +238,7 @@ void updateUI() {
     {
         u8g2.setFont(u8g_font_profont29);
 
-        String volumeString = String((audio.getVolume() * 100) / 21) + "%";
+        String volumeString = String(volumePercent) + "%";
         u8g2.drawStr(57, 41, volumeString.c_str()); // Draw volume on the display
         u8g2.setFont(u8g_font_5x7);                 // Change this to the correct font name
         u8g2.drawStr(36, 59, "Volume");
@@ -237,8 +256,7 @@ void updateUI() {
     u8g2.sendBuffer();
 }
 
-static int lastMode = -1;
-static int lastEncoderValue = 0;
+
 
 
 void handleEncoder() {
@@ -256,19 +274,29 @@ void handleEncoder() {
 
 
 void updateBPM() {
-    int value = encoder.getCount() / 4;
-    if (value != lastEncoderValue) {
-        int bpm = constrain(value, metronomeSettings.bpmMin, metronomeSettings.bpmMax);
-        if (bpm != metronomeSettings.bpm) {
-            metronomeSettings.bpm = bpm;
-            encoder.setCount(bpm * 4);
-            metronomeSettings.updateBeatInterval();
-            Serial.print("bpm changed to: ");
-            Serial.println(bpm);
+    long rawCount = encoder.getCount();            // Read raw encoder count (FullQuad)
+    long diff = rawCount - lastEncoderRawCount;    // Calculate movement since last update
+    int bpmChange = diff / 4;                       // Convert ticks to BPM steps (1 step = 4 ticks)
+
+    if (bpmChange != 0) {
+        // Calculate new BPM value within allowed range
+        int newBpm = constrain(metronomeSettings.bpm + bpmChange, metronomeSettings.bpmMin, metronomeSettings.bpmMax);
+
+        if (newBpm != metronomeSettings.bpm) {
+            metronomeSettings.bpm = newBpm;        // Update BPM setting
+            Serial.print("BPM changed to: ");
+            Serial.println(newBpm);
+            metronomeSettings.updateBeatInterval(); // Update timing based on new BPM
         }
-        lastEncoderValue = value;
+
+        // Reset encoder count to match new BPM scaled by 4
+        encoder.setCount(newBpm * 4);
+
+        // Update last encoder raw count for future diffs
+        lastEncoderRawCount = encoder.getCount();
     }
 }
+
 
 
 
@@ -288,19 +316,36 @@ void selectSound() {
 
 
 void updateVolume() {
-    int value = encoder.getCount() / 4;
-    if (value != lastEncoderValue) {
-        int vol = constrain(value, 0, 100);
-        int newVolume = round(vol * 21 / 100);
-        if (newVolume != audio.getVolume()) {
-            audio.setVolume(newVolume);
-            encoder.setCount(vol * 4);
-            Serial.print("Volume: ");
-            Serial.println(vol);
-        }
-        lastEncoderValue = value;
+    long rawCount = encoder.getCount();  // Get raw encoder count (FullQuad)
+    long diff = rawCount - lastEncoderRawCount;  // Calculate movement since last update
+    int volChange = diff / 4;  // Convert ticks to volume steps (1 step = 4 ticks)
+
+    if (volChange != 0) {
+        // Update volume percentage, constrained between 0 and 100%
+        volumePercent = constrain(volumePercent + volChange, 0, 100);
+
+        // Map volumePercent (0-100) to audio volume range (0-21)
+        int newVolume = round(volumePercent * 21.0 / 100.0);
+
+        // Set audio volume
+        audio.setVolume(newVolume);
+
+        // Reset encoder count to match current volumePercent * 4 (scaled)
+        encoder.setCount(volumePercent * 4);
+
+        // Update last encoder raw count for next diff calculation
+        lastEncoderRawCount = encoder.getCount();
+
+        // Debug print
+        Serial.print("Volume: ");
+        Serial.print(volumePercent);
+        Serial.println(" %");
     }
 }
+
+
+
+
 
 
 void click(Button2 &btn) { 
@@ -320,9 +365,11 @@ void updateMode() {
             lastEncoderValue = soundIndex;
             break;
         case 2:
-            encoder.setCount((audio.getVolume() * 100 / 21) * 4);
-            lastEncoderValue = audio.getVolume() * 100 / 21;
+            volumePercent = round(audio.getVolume() * 100.0 / 21.0);  // Startwert setzen
+            encoder.setCount(volumePercent * 4);
+            lastEncoderValue = volumePercent;
             break;
+
     }
 }
 
