@@ -1,0 +1,2 @@
+-Serienwiderstand + C für Encoder (1kohm + 10nF?) oder 100nF + 10kOhm Pullup? + 470Serie?
+-
