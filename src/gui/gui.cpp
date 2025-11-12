@@ -1,23 +1,30 @@
+//gui.cpp
 #include "gui.h"
 #include <Wire.h>
 #include <U8g2lib.h>
 #include "system/pins.h"
 
+
 namespace {
-  // SSD1306 128x64, I2C, Full-Buffer, kein Reset-Pin
   U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
-
   QueueHandle_t guiQueue = nullptr;
-  TaskHandle_t  guiTaskHandle = nullptr;
-  int           lastShownBPM = -1;
+  TaskHandle_t guiTaskHandle = nullptr;
+  int lastShownBPM = -1;
 
-  // Zeichnet den BPM-Wert groß (≈60% der Fläche) und zentriert
+  volatile bool gMuted = false;   // NEU
+
   void drawBPM(int bpm) {
     u8g2.clearBuffer();
 
-    // Kleines Label oben links
+    // Label "BPM" oben links
     u8g2.setFont(u8g2_font_6x12_tf);
     u8g2.drawStr(0, 10, "BPM");
+
+    // NEU: "OFF" unter dem "BPM"-Label, wenn gemutet
+    if (gMuted) {
+      u8g2.drawStr(0, 22, "OFF");   // eine Zeile darunter; bei Bedarf Koordinaten justieren
+    }
+
 
     // Zielrechteck (60% der Displayfläche), zentriert
     const int SCREEN_W = 128;
@@ -73,19 +80,25 @@ namespace {
       drawBPM(lastShownBPM); // Erste Anzeige falls vorhanden
     }
 
+
     for (;;) {
-      // "Last-value-wins": Queue-Länge 1 → wir holen das aktuellste Event
       if (xQueueReceive(guiQueue, &ev, wait) == pdTRUE) {
         if (ev.type == Gui::Event::BPM_CHANGED) {
           if (ev.value != lastShownBPM) {
             lastShownBPM = ev.value;
             drawBPM(lastShownBPM);
+          } else {
+            // BPM gleich geblieben -> trotzdem neu zeichnen (z.B. wenn OFF gerade an/aus ging)
+            drawBPM(lastShownBPM);
           }
         }
+      } else {
+        // Timeout ohne Event: optional zyklisch refreshen, falls gewünscht
       }
     }
   }
 }
+
 
 namespace Gui {
 
@@ -106,6 +119,16 @@ namespace Gui {
   void startTask() {
     xTaskCreatePinnedToCore(guiTask, "GUI", 4096, nullptr, 1, &guiTaskHandle, 0); // Core 0
   }
+
+  void setMuted(bool muted) {
+    gMuted = muted;
+    // sofort neu zeichnen, falls wir bereits einen BPM-Wert hatten
+    if (lastShownBPM >= 0) {
+      drawBPM(lastShownBPM);
+    }
+  }
+  bool isMuted() { return gMuted; }
+
 
   bool postBPM(int bpm) {
     if (!guiQueue) return false;
