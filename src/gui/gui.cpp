@@ -102,19 +102,28 @@ namespace {
 
 namespace Gui {
 
-  bool init() {
-    // I2C Setup
-    Wire.begin(Pins::I2C_SDA, Pins::I2C_SCL);
-    Wire.setClock(400000);            // Fast Mode
+bool init() {
+  // (A) Kurze Power-On-Stabilisierung
+  delay(50);
 
-    // U8g2: I2C-Adresse als 8-bit Wert (0x3C oder 0x3D jeweils <<1)
-    u8g2.setI2CAddress(0x3C << 1);    // falls dein Modul 0x3D hat: (0x3D << 1)
-    u8g2.begin();
+  // (B) I2C Setup
+  Wire.begin(Pins::I2C::SDA, Pins::I2C::SCL);
+  Wire.setClock(400000); // Fast Mode
 
-    // Queue mit Länge 1 → xQueueOverwrite() möglich
-    guiQueue = xQueueCreate(1, sizeof(Event));
-    return (guiQueue != nullptr);
-  }
+  // (C) U8g2 Setup
+  u8g2.setI2CAddress(0x3C << 1);   // falls dein Modul 0x3D hat: (0x3D << 1)
+  u8g2.begin();
+
+  // (D) Erstes „Blanking“-Frame, damit beim Start nichts „zerschossen“ aussieht
+  u8g2.clearBuffer();
+  u8g2.sendBuffer();               // leeres Bild übertragen
+  // optional: kleine Pause
+  delay(10);
+
+  // (E) Queue mit Länge 1 -> xQueueOverwrite() möglich
+  guiQueue = xQueueCreate(1, sizeof(Event));
+  return (guiQueue != nullptr);
+}
 
   void startTask() {
     xTaskCreatePinnedToCore(guiTask, "GUI", 4096, nullptr, 1, &guiTaskHandle, 0); // Core 0

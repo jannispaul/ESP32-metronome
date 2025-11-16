@@ -9,4 +9,9 @@ namespace Encoder {
   int consumeClicks();
 
   void init();
+
+
+  using EncoderCallback = void(*)(int /*delta*/);
+  void setCallback(EncoderCallback cb); // <— NEU: Delta-Callback setzen
+
 }

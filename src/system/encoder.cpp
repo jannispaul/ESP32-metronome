@@ -8,6 +8,7 @@ namespace Encoder {
 
   volatile int clicks = 0;
   portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
+  EncoderCallback s_cb = nullptr; // <— NEU
 
   // Quadratur-Tabelle (Gray-Code)
   static const int8_t table[16] = {
@@ -44,6 +45,7 @@ namespace Encoder {
           portENTER_CRITICAL(&mux);
           clicks += steps;
           portEXIT_CRITICAL(&mux);
+          if (s_cb) { s_cb(steps); }                 // <— NEU: Callback aufrufen
 
           // Rest behalten (0..±(DETENT_STEPS-1))
           accum -= steps * ENCODER_DETENT_STEPS;
@@ -79,4 +81,6 @@ namespace Encoder {
     portEXIT_CRITICAL(&mux);
     return c;
   }
+  
+  void setCallback(EncoderCallback cb) { s_cb = cb; } // <— NEU
 }
