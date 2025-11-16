@@ -6,21 +6,28 @@ constexpr uint8_t I2S_DOUT = 25;
 constexpr uint8_t I2S_BCLK = 26;
 constexpr uint8_t I2S_LRC  = 27;
 
-// Initialisiert die AudioTask (Core 1) und I2S (einmalig)
-void audio_init();
+// ---- Init & Beat ----
+void     audio_init();
+void     audio_set_bpm(uint16_t bpm);
+uint16_t audio_get_bpm();
+uint32_t audio_get_period_ms();
 
-// BPM festlegen (z. B. 60.0). Untergrenze 1 BPM.
-// Darf auch vor audio_init() aufgerufen werden.
-void audio_set_bpm(float bpm);
-
-// Übergibt einen im RAM liegenden WAV-Buffer (inkl. 44-Byte WAV-Header).
-// Format-Annahme: PCM 16-bit mono, SAMPLE_RATE (siehe audio.cpp).
-// Darf auch vor audio_init() aufgerufen werden.
+// ---- Buffer Übergabe ----
 void audio_set_buffer(uint8_t* data, size_t size);
 
-// Spielt die AudioTask aktuell?
+// ---- Status / Events ----
 bool audio_is_playing();
-
-// Blockiert bis ein "Playback fertig"-Event eintrifft (Timeout in ms).
-// Liefert true bei Event, false bei Timeout oder wenn Queue noch nicht existiert.
 bool audio_take_playback_done(uint32_t timeout_ms);
+
+// ---- Hold (Start-Sperre) ----
+void audio_set_hold(bool hold);
+bool audio_get_hold();
+
+// ---- NEU: Lautstärke ----
+// Prozent 0..100 (0 = aus, 100 = unverändert)
+void    audio_set_volume(uint8_t percent);
+uint8_t audio_get_volume();
+
+// Mute toggeln/abfragen (Mute hat Vorrang vor Volume)
+void audio_mute(bool enable);
+bool audio_is_muted();
