@@ -1,65 +1,52 @@
-// led.cpp
+
+// led.cpp (neu)
 #include "led.h"
 #include "pins.h"
 #include "config.h"
+#include "audio.h"
+
+#include <Arduino.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 
 namespace LEDTask {
-
-    // Optional 'volatile' – int-Zugriffe sind i.d.R. atomar, aber volatile dokumentiert nebenläufigen Zugriff
-    static volatile int bpm = BPM_START;
     static volatile bool enabled = true;
     static TaskHandle_t handle = nullptr;
-
-    // µs -> RTOS-Ticks, immer mind. 1 Tick warten
-    static inline TickType_t usToMinTicks(int64_t us) {
-        if (us <= 0) return 1;
-        TickType_t t = pdMS_TO_TICKS((us + 999) / 1000); // auf nächste ms runden
-        return (t == 0) ? 1 : t;
-    }
-
-    void setBPM(int newBpm) {
-        bpm = constrain(newBpm, BPM_MIN, BPM_MAX);
-    }
-
-    int getBPM() { return bpm; }
+    static QueueHandle_t beatQ = nullptr;
 
     void setEnabled(bool on) { enabled = on; }
     bool isEnabled() { return enabled; }
 
+    // Optional: BPM-API beibehalten für spätere Fallbacks
+    static volatile int bpm = 120;
+    void setBPM(int newBpm) { bpm = (newBpm <= 0) ? 1 : newBpm; }
+    int  getBPM() { return bpm; }
+
     static void ledTask(void*) {
-        // pinMode(Pins::LED, OUTPUT);   // <-- Entfernt: Pin-Setup erfolgt zentral in main.cpp
+        pinMode(Pins::LED, OUTPUT);
+        digitalWrite(Pins::LED, LOW);
 
-        // deterministischer Start: erster Beat in einer vollen Periode
-        int localBPM   = bpm;
-        int64_t period = 60000000LL / localBPM;           // µs pro Beat
-        int64_t nextBeat = esp_timer_get_time() + period; // erster Beat
+        // Beat-Queue vom Audio-Modul besorgen
+        beatQ = audio_get_beat_queue();
 
+        // Falls Queue (noch) nicht existiert, periodisch erneut probieren
+        while (!beatQ) {
+            vTaskDelay(pdMS_TO_TICKS(50));
+            beatQ = audio_get_beat_queue();
+        }
+
+        uint8_t ev;
         for (;;) {
-            // BPM-Schnappschuss & Periodenberechnung
-            localBPM = bpm;
-            period   = 60000000LL / localBPM;
-
-            // bis zum nächsten Beat schlafen (nicht blockierend)
-            int64_t now = esp_timer_get_time();
-            int64_t wait = nextBeat - now;
-            if (wait > 0) {
-                vTaskDelay(usToMinTicks(wait));
-            } else {
-                // Verzug: Beat neu terminieren
-                nextBeat = esp_timer_get_time() + period;
+            // Wartet effizient auf das nächste Beat-Event (kein Busy-Wait)
+            if (xQueueReceive(beatQ, &ev, portMAX_DELAY) == pdTRUE) {
+                if (enabled) {
+                    vTaskDelay(pdMS_TO_TICKS(LED_OFFSET_MS)); //Offset für Audio-Synchronität
+                    digitalWrite(Pins::LED, HIGH);
+                    vTaskDelay(pdMS_TO_TICKS(LED_ON_TIME_MS));
+                    digitalWrite(Pins::LED, LOW);
+                }
+                // Wenn disabled, Event einfach „verbraucht“ → kein Blink
             }
-
-
-            // LED nur schalten, wenn enabled == true
-            if (enabled) {
-                digitalWrite(Pins::LED, HIGH);
-                vTaskDelay(pdMS_TO_TICKS(LED_ON_TIME_MS));
-                digitalWrite(Pins::LED, LOW);
-            }
-
-
-            // nächsten Beat vorbereiten
-            nextBeat += period;
         }
     }
 
@@ -70,9 +57,9 @@ namespace LEDTask {
                 "LED",
                 2048,
                 nullptr,
-                1,      // niedrige Priorität reicht aus
+                1,     // niedrige Priorität
                 &handle,
-                0       // Core 0 (gemeinsam mit Encoder/GUI/Control)
+                0      // Core 0 (zusammen mit GUI/Encoder/Buttons)
             );
         }
     }

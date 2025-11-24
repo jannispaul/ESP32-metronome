@@ -269,8 +269,12 @@ void player_setup(const PlayerConfig& cfg) {
 
     // 3.1) GUI starten
     if (Gui::init()) {                       // Display & Queue bereitstellen
-    Gui::startTask();                      // GUI-Task (Core 0) starten
-    Gui::postBPM(s_bpm);                   // Initiale BPM anzeigen
+    //Gui::startTask();                      // GUI-Task (Core 0) starten
+    //Gui::postBPM(s_bpm);                   // Initiale BPM anzeigen
+    vTaskDelay(pdMS_TO_TICKS(50));    // NEU: kurze Pause für Display-Stabilität
+    Gui::showInitialBPM(s_bpm);        // NEU: sofortige Anzeige
+    //vTaskDelay(pdMS_TO_TICKS(500)); 
+    Gui::startTask();                  // danach Task starten
     Gui::setMuted(audio_is_muted());       // „OFF“ anzeigen, falls aktuell gemutet
     }
 

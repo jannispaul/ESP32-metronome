@@ -9,3 +9,4 @@ constexpr int ENCODER_DEBOUNCE_MS = 3;   // sehr kurz, weil RC-Hardware vorhande
 
 // LED
 constexpr int LED_ON_TIME_MS = 50;
+constexpr int LED_OFFSET_MS = 12;

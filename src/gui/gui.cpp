@@ -72,31 +72,29 @@ namespace {
     u8g2.sendBuffer(); // flush
   }
 
-  void guiTask(void*) {
+
+void guiTask(void*) {
     Gui::Event ev;
     const TickType_t wait = pdMS_TO_TICKS(100);
 
-    if (lastShownBPM >= 0) {
-      drawBPM(lastShownBPM); // Erste Anzeige falls vorhanden
+    // NEU: Warten, bis Initialanzeige erfolgt ist
+    while (lastShownBPM < 0) {
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 
-
+    // Erste Anzeige bleibt stehen, bis ein Event kommt
     for (;;) {
-      if (xQueueReceive(guiQueue, &ev, wait) == pdTRUE) {
-        if (ev.type == Gui::Event::BPM_CHANGED) {
-          if (ev.value != lastShownBPM) {
-            lastShownBPM = ev.value;
-            drawBPM(lastShownBPM);
-          } else {
-            // BPM gleich geblieben -> trotzdem neu zeichnen (z.B. wenn OFF gerade an/aus ging)
-            drawBPM(lastShownBPM);
-          }
+        if (xQueueReceive(guiQueue, &ev, wait) == pdTRUE) {
+            if (ev.type == Gui::Event::BPM_CHANGED) {
+                if (ev.value != lastShownBPM) {
+                    lastShownBPM = ev.value;
+                }
+                drawBPM(lastShownBPM);
+            }
         }
-      } else {
-        // Timeout ohne Event: optional zyklisch refreshen, falls gewünscht
-      }
     }
-  }
+}
+
 }
 
 
@@ -108,7 +106,7 @@ bool init() {
 
   // (B) I2C Setup
   Wire.begin(Pins::I2C::SDA, Pins::I2C::SCL);
-  Wire.setClock(400000); // Fast Mode
+  Wire.setClock(400000); // Mode
 
   // (C) U8g2 Setup
   u8g2.setI2CAddress(0x3C << 1);   // falls dein Modul 0x3D hat: (0x3D << 1)
@@ -123,6 +121,12 @@ bool init() {
   // (E) Queue mit Länge 1 -> xQueueOverwrite() möglich
   guiQueue = xQueueCreate(1, sizeof(Event));
   return (guiQueue != nullptr);
+}
+
+void showInitialBPM(int bpm) {
+    if (bpm <= 0) bpm = 1;
+    lastShownBPM = bpm;
+    drawBPM(lastShownBPM);  // direkte Anzeige ohne Queue
 }
 
   void startTask() {

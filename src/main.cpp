@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "system/player.h"
+#include "system/led.h"
 
 // Minimaler Einstiegspunkt, nah an deiner bisherigen main.cpp.
 // Filesystem/Buttons/Encoder-Handling sind extern; Core-Zuordnung erfolgt im Player.
@@ -14,6 +15,9 @@ void setup() {
   cfg.startVolumePercent = 15;   // Start-Lautstärke in %
 
   player_setup(cfg);
+  LEDTask::start();            // <--- LED-Task starten
+  LEDTask::setEnabled(true);   // optional: sofort einschalten
+
 }
 
 void loop() {

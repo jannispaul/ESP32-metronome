@@ -31,3 +31,9 @@ uint8_t audio_get_volume();
 // Mute toggeln/abfragen (Mute hat Vorrang vor Volume)
 void audio_mute(bool enable);
 bool audio_is_muted();
+
+
+// ---- NEU: Beat-Queue (Sync für LED) ----
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
+QueueHandle_t audio_get_beat_queue();

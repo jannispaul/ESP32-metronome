@@ -55,6 +55,23 @@ static inline uint32_t now_ms() {
   return (uint32_t)(esp_timer_get_time() / 1000ULL);
 }
 
+
+// --- NEU: Beat-Queue ---
+static QueueHandle_t s_beatQueue = nullptr;
+static inline void ensure_beat_queue() {
+    if (!s_beatQueue) {
+        s_beatQueue = xQueueCreate(1, sizeof(uint8_t)); // Länge 1: Über-schreiben statt stapeln
+#if AUDIO_TELEM_VERBOSE
+        if (s_beatQueue) Serial.println("📣 audio: beat-queue created");
+#endif
+    }
+}
+QueueHandle_t audio_get_beat_queue() { 
+  ensure_beat_queue(); 
+  return s_beatQueue;
+}
+
+
 // ------------------- Hilfsfunktionen -------------------
 static inline void ensure_mutex() {
   if (!s_bufMutex) {
@@ -202,6 +219,7 @@ static void audio_task(void*) {
   i2s_install_once();
   ensure_mutex();
   ensure_done_queue();
+  ensure_beat_queue();
 
  
   // --- Start: pending BPM-Request sofort übernehmen, sonst Default (z.B. 120 BPM) ---
@@ -242,6 +260,14 @@ for (;;) {
   TickType_t nextTicks = next_aligned_beat_after(nowTicks);
   TickType_t wait = nextTicks - nowTicks;
   if (wait > 0) vTaskDelay(wait);
+
+
+  // --- NEU: Beat-Signal senden (nicht-blockierend, überschreibt älteres) ---
+  if (s_beatQueue) {
+      uint8_t ev = 1;
+      xQueueOverwrite(s_beatQueue, &ev);
+  }
+
 
   // Beat auslösen / Telemetrie / Wiedergabe wie gehabt ...
   s_beatCounter++;
@@ -321,6 +347,7 @@ for (;;) {
 void audio_init() {
   ensure_mutex();
   ensure_done_queue();
+  ensure_beat_queue();
   xTaskCreatePinnedToCore(audio_task, "AudioTask", 8192, nullptr, 2, &s_audioTask, 1);
 }
 

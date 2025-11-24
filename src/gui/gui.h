@@ -11,7 +11,9 @@ namespace Gui {
 
     // GUI initialisieren (z. B. Display, Buffer, Fonts …)
     bool init();
-
+    
+    void showInitialBPM(int bpm);
+    
     // BPM-Wert an GUI schicken (threadsafe über Queue)
     bool postBPM(int bpm);
 
