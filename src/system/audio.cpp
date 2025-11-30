@@ -3,6 +3,7 @@
 #include <atomic>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "freertos/task.h"   // für xTaskNotifyGive / ulTaskNotifyTake
 #include "esp_timer.h"  // µs-Zeitstempel
 
 // ------------------- Telemetrie-Schalter -------------------
@@ -257,9 +258,22 @@ for (;;) {
   }
 
   // Jetzt das (ggf. neue) Raster verwenden – next_aligned... liefert weiterhin next_old
-  TickType_t nextTicks = next_aligned_beat_after(nowTicks);
-  TickType_t wait = nextTicks - nowTicks;
-  if (wait > 0) vTaskDelay(wait);
+
+TickType_t nextTicks = next_aligned_beat_after(nowTicks);
+TickType_t wait = nextTicks - nowTicks;
+
+// NEU: warte bis zur Beat-Grenze, aber brich bei Reset-Notification sofort ab
+if (wait > 0) {
+    // ulTaskNotifyTake: blockiert bis Benachrichtigung ODER Timeout
+    // Rückgabe >0 bedeutet: eine Notification erhalten → Reset → alten Beat verwerfen
+    uint32_t notif = ulTaskNotifyTake(pdTRUE /*clear*/, wait);
+    if (notif > 0) {
+        // Reset angefordert: Schleife neu starten, keinen Beat auslösen
+        continue;
+    }
+}
+
+
 
 
   // --- NEU: Beat-Signal senden (nicht-blockierend, überschreibt älteres) ---
@@ -417,3 +431,33 @@ void audio_mute(bool enable) {
 bool audio_is_muted() {
   return s_muted.load(std::memory_order_acquire);
 }
+
+
+void audio_commit_bpm_now(uint16_t bpm) {
+    if (bpm == 0) bpm = 1;
+    s_bpm_req.store(0, std::memory_order_release);
+    s_bpm = bpm;
+    uint32_t period_ms = bpm_to_period_ms(bpm);
+    TickType_t newPeriod = ms_to_ticks(period_ms);
+    if (newPeriod == 0) newPeriod = 1;
+    s_periodTicks = newPeriod;
+    s_epochTicks = xTaskGetTickCount(); // sofortige Epoche
+    Serial.printf("⏱️ BPM(commit-now)=%u | period=%u ms\n", bpm, period_ms);
+}
+
+
+void audio_reset_beat_sync_now() {
+    // Epoche sofort neu setzen
+    s_epochTicks = xTaskGetTickCount();
+    // Falls ein BPM-Request ansteht, erledigt: wir haben bereits commit-now verwendet
+    s_bpm_req.store(0, std::memory_order_release);
+
+    // Den AudioTask benachrichtigen: aktuellen Wait abbrechen
+    if (s_audioTask) {
+        xTaskNotifyGive(s_audioTask);
+    }
+#if AUDIO_TELEM
+    Serial.println("🔄 Beat-Sync reset");
+#endif
+}
+

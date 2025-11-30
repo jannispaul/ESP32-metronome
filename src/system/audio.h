@@ -37,3 +37,7 @@ bool audio_is_muted();
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 QueueHandle_t audio_get_beat_queue();
+
+//
+void audio_commit_bpm_now(uint16_t bpm);
+void audio_reset_beat_sync_now();

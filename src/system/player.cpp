@@ -33,7 +33,8 @@ static int s_volume = 50;                       // NEU: Volume-Cache
 
 static uint32_t s_holdStartMs = 0; // Zeitpunkt, ab dem hold aktiv ist
 
-
+// ---- Forward declaration für File-Wechsel (wird weiter unten definiert) ----
+static void requestFileSwitch(int steps);
 
 static int mod_wrap(int a, int n) {
     if (n <= 0) return 0;
@@ -41,6 +42,200 @@ static int mod_wrap(int a, int n) {
     return (r < 0) ? (r + n) : r;
 }
 
+
+// --- Presets über LittleFS/JSON -------------------------------------------
+struct Preset {
+    uint16_t bpm;
+    int      volume;     // 0..100
+    int      fileIndex;  // 0..(s_wavFiles.size()-1)
+};
+
+static const char* kPresetFile = "/presets.json";
+
+// Lies komplette Datei als String
+static bool fs_read_string(const char* path, String& out) {
+    File f = LittleFS.open(path, "r");
+    if (!f) return false;
+    out = f.readString();
+    f.close();
+    return true;
+}
+
+// Schreibe String atomar (hier: direkt, ausreichend für kleine Daten)
+static bool fs_write_string_atomic(const char* path, const String& data) {
+    File f = LittleFS.open(path, "w");
+    if (!f) return false;
+    size_t n = f.print(data);
+    f.flush();
+    f.close();
+    return n == data.length();
+}
+
+// Baue JSON für 3 Presets: { "preset1": {...}, "preset2": {...}, "preset3": {...} }
+
+static String make_presets_json(const Preset& p1, const Preset& p2, const Preset& p3) {
+    String s = "{\n";
+    s += "  \"preset1\": {\"bpm\":" + String(p1.bpm)
+       + ",\"volume\":" + String(p1.volume)
+       + ",\"fileIndex\":" + String(p1.fileIndex) + "},\n";
+    s += "  \"preset2\": {\"bpm\":" + String(p2.bpm)
+       + ",\"volume\":" + String(p2.volume)
+       + ",\"fileIndex\":" + String(p2.fileIndex) + "},\n";
+    s += "  \"preset3\": {\"bpm\":" + String(p3.bpm)
+       + ",\"volume\":" + String(p3.volume)
+       + ",\"fileIndex\":" + String(p3.fileIndex) + "}\n";
+    s += "}\n";
+    return s;
+}
+
+
+// Minimaler JSON-Parser für Integer-Felder innerhalb eines Objekt-Abschnitts
+static bool findIntInSection(const String& s, const char* section, const char* key, int& out) {
+    int secPos = s.indexOf(String("\"") + section + "\"");
+    if (secPos < 0) return false;
+    int braceOpen  = s.indexOf('{', secPos);
+    if (braceOpen < 0) return false;
+    int braceClose = s.indexOf('}', braceOpen);
+    if (braceClose < 0) return false;
+
+    String sec = s.substring(braceOpen + 1, braceClose); // Inhalt zwischen { ... }
+    int keyPos = sec.indexOf(String("\"") + key + "\"");
+    if (keyPos < 0) return false;
+    int colon = sec.indexOf(':', keyPos);
+    if (colon < 0) return false;
+
+    int i = colon + 1;
+    while (i < sec.length() && sec[i] == ' ') i++;
+    int j = i;
+    if (j < sec.length() && sec[j] == '-') j++; // negative Zahlen (nicht gebraucht, aber robust)
+    while (j < sec.length() && isDigit((unsigned char)sec[j])) j++;
+    String numStr = sec.substring(i, j);
+    if (numStr.length() == 0) return false;
+
+    out = numStr.toInt();
+    return true;
+}
+
+// Parsen der kompletten presets.json in 3 Presets
+static bool parse_presets_json(const String& json, Preset out[3]) {
+    bool ok = true;
+    const char* names[3] = { "preset1", "preset2", "preset3" };
+    for (int i = 0; i < 3; ++i) {
+        int bpm = 120, vol = 50, idx = 0;
+        ok &= findIntInSection(json, names[i], "bpm", bpm);
+        ok &= findIntInSection(json, names[i], "volume", vol);
+        ok &= findIntInSection(json, names[i], "fileIndex", idx);
+        out[i].bpm      = (uint16_t)((bpm < 1) ? 1 : bpm);
+        out[i].volume   = (vol < 0) ? 0 : (vol > 100 ? 100 : vol);
+        out[i].fileIndex= idx;
+    }
+    return ok;
+}
+
+// Wendet ein Preset an: BPM, Volume, Dateiwechsel (über vorhandene Logik)
+static void applyPreset(const Preset& p) {
+    // 1) BPM
+    s_bpm = (p.bpm < 1) ? 1 : p.bpm;
+    audio_set_bpm(s_bpm);
+    audio_commit_bpm_now(s_bpm); // NEU: sofortiger Commit
+    audio_reset_beat_sync_now(); // NEU: verhindert Doppelbeats
+    Gui::postBPM(s_bpm);
+    Serial.printf("🎚️ BPM gesetzt: %d\n", s_bpm);
+
+    // 2) Volume
+    s_volume = (p.volume < 0) ? 0 : (p.volume > 100 ? 100 : p.volume);
+    audio_set_volume(s_volume);
+    Gui::postVolume(s_volume);
+    Serial.printf("🔊 Volume gesetzt: %d%%\n", s_volume);
+
+    // 3) Dateiwechsel
+    if (s_wavFiles.empty()) {
+        Serial.println("⚠️ Keine WAV-Dateien vorhanden – Dateiwechsel übersprungen.");
+        return;
+    }
+    int target = p.fileIndex;
+    if (target < 0 || target >= (int)s_wavFiles.size()) {
+        Serial.printf("⚠️ FILE Index %d außerhalb des Bereichs 0..%d – ignoriert.\n",
+                      target, (int)s_wavFiles.size() - 1);
+        return;
+    }
+    int current = (s_currentIndex < 0) ? 0 : s_currentIndex;
+    int delta   = target - current;
+
+    // Vorschau in GUI
+    Gui::postFile(s_wavFiles[target], target, (int)s_wavFiles.size());
+    // Wechsel über vorhandenen Mechanismus (Hold/Preload etc.)
+    requestFileSwitch(delta);
+
+    Serial.printf("📁 Dateiwechsel angefordert: %d → %d (%+d) [%s]\n",
+                  current, target, delta, s_wavFiles[target].c_str());
+    Serial.printf("🎛️ Preset angewendet: BPM=%d VOL=%d%% FILE=%d (%s)\n",
+                  s_bpm, s_volume, target, s_wavFiles[target].c_str());
+}
+
+// Speichert aktuelles Setting in presets.json unter ID (1..3)
+static bool savePreset(int id) {
+    if (id < 1 || id > 3) return false;
+
+    Preset now {
+        (uint16_t)((s_bpm < 1) ? 1 : s_bpm),
+        (s_volume < 0) ? 0 : (s_volume > 100 ? 100 : s_volume),
+        (s_currentIndex < 0) ? 0 : s_currentIndex
+    };
+
+    // Vorhandene Datei laden (falls vorhanden), sonst Defaults
+    Preset arr[3] = {
+        Preset{120, 50, 0},
+        Preset{120, 50, 0},
+        Preset{120, 50, 0},
+    };
+
+    String json;
+    if (LittleFS.exists(kPresetFile) && fs_read_string(kPresetFile, json)) {
+        if (!parse_presets_json(json, arr)) {
+            Serial.println("⚠️ presets.json existiert, konnte aber nicht vollständig geparst werden – verwende Defaults.");
+        }
+    }
+
+    arr[id - 1] = now; // gewähltes Preset überschreiben
+
+    String out = make_presets_json(arr[0], arr[1], arr[2]);
+    if (!fs_write_string_atomic(kPresetFile, out)) {
+        Serial.println("❌ Preset-Datei schreiben fehlgeschlagen.");
+        return false;
+    }
+
+    Serial.printf("💾 Preset %d gespeichert: BPM=%d VOL=%d%% FILE=%d\n",
+                  id, now.bpm, now.volume, now.fileIndex);
+    return true;
+}
+
+// Lädt ein Preset aus presets.json und wendet es an
+static bool loadPreset(int id) {
+    if (id < 1 || id > 3) return false;
+
+    if (!LittleFS.exists(kPresetFile)) {
+        Serial.println("⚠️ /presets.json nicht vorhanden – keine Presets geladen.");
+        return false;
+    }
+    String json;
+    if (!fs_read_string(kPresetFile, json)) {
+        Serial.println("❌ presets.json konnte nicht gelesen werden.");
+        return false;
+    }
+
+    Preset arr[3];
+    if (!parse_presets_json(json, arr)) {
+        Serial.println("❌ presets.json Parsing fehlgeschlagen.");
+        return false;
+    }
+
+    Serial.printf("📖 Preset %d geladen: BPM=%d VOL=%d%% FILE=%d\n",
+                  id, arr[id - 1].bpm, arr[id - 1].volume, arr[id - 1].fileIndex);
+
+    applyPreset(arr[id - 1]);
+    return true;
+}
 
 
 // --------------------------- Utils ---------------------------
@@ -165,12 +360,34 @@ static void onButtonEncLong()  {          // Long -> Mute toggle
   Serial.printf("Mute toggled -> %s\n", !m ? "ON" : "OFF");
   // TODO (optional): Gui::setMuted(!m);
 }
-static void onButton1()        { Serial.println("Button 1 pressed"); }
-static void onButton1Long()    { Serial.println("Button 1 Long Press"); }
-static void onButton2()        { Serial.println("Button 2 pressed"); }
-static void onButton2Long()    { Serial.println("Button 2 Long Press"); }
-static void onButton3()        { Serial.println("Button 3 pressed"); }
-static void onButton3Long()    { Serial.println("Button 3 Long Press"); }
+
+static void onButton1()      { 
+    Serial.println("Button 1 pressed → Lade Preset 1");
+    if (!loadPreset(1)) Serial.println("⚠️ Preset 1 nicht verfügbar.");
+}
+static void onButton1Long()  { 
+    Serial.println("Button 1 Long Press → Speichere Preset 1");
+    (void)savePreset(1);
+}
+
+static void onButton2()      { 
+    Serial.println("Button 2 pressed → Lade Preset 2");
+    if (!loadPreset(2)) Serial.println("⚠️ Preset 2 nicht verfügbar.");
+}
+static void onButton2Long()  { 
+    Serial.println("Button 2 Long Press → Speichere Preset 2");
+    (void)savePreset(2);
+}
+
+static void onButton3()      { 
+    Serial.println("Button 3 pressed → Lade Preset 3");
+    if (!loadPreset(3)) Serial.println("⚠️ Preset 3 nicht verfügbar.");
+}
+static void onButton3Long()  { 
+    Serial.println("Button 3 Long Press → Speichere Preset 3");
+    (void)savePreset(3);
+}
+
 
 
 static void onEncoderDelta(int delta) {
