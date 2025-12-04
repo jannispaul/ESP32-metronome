@@ -104,6 +104,12 @@ Lopaka Workflow inspired by: https://www.youtube.com/watch?v=Eyvzw_ujcS0
 - https://www.schaeffer-ag.de/
 - Beachte: Material, CE, EMV Prüfung (EMC) -> 
 
+#### Contenders:
+- https://www.rapidonline.com/hammond-1590g2-diecast-enclosure-100-x-50-x-31-natural-31-1010
+- https://www.hammfg.com/part/1590G?referer=736
+- List: https://www.hammfg.com/electronics/small-case/diecast/1590
+- https://de.aliexpress.com/item/1005006900224809.html?spm=a2g0o.productlist.main.8.1f0664c3JqVwxm
+
 #### Inspiration
 - https://www.reddit.com/r/diypedals/
 - https://www.reddit.com/r/diypedals/comments/1olhobk/objekt_808_and_v7_built_for_a_customer/
